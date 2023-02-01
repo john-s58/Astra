@@ -72,6 +72,7 @@ impl Layer for LayerDense{
         // println!("self.weights POST GRADIENT = {:#?}", self.weights.data.as_vec());
         // println!("self.biases POST GRADIENT = {:#?}", self.biases.data.as_vec());
 
+        // println!("{:#?}", err.data.as_vec());
         err * self.weights.transpose()
     }
 
@@ -111,6 +112,8 @@ impl Net{
 
         let mut error_mat = DMatrix::<f32>::from_vec(1, error.len(), error.clone());
 
+       // println!("net initial error_mat {:#?}", error_mat.data.as_vec());
+
         for l in self.layers.iter_mut().rev() {
             error_mat = l.back_propagation(error_mat, 0.01);
         }
@@ -118,8 +121,8 @@ impl Net{
 }
 
 fn main () {
-    let mut l1 = Box::new(LayerDense::new(1, 1, |x| x.max(0.0),
-                                                                 |x| if x > 0.0 {1.0} else {0.0}));
+    let mut l1 = Box::new(LayerDense::new(1, 1, |x| if x > 0.0 {x} else {0.33 * x},
+                                                                 |x| if x > 0.0 {1.0} else {0.33}));
     // let mut l2 = Box::new(LayerDense::new(1, 3, |x| x.max(0.0),
     //                                                                 |x| if x > 0.0 {1.0} else {0.0}));
 
@@ -132,10 +135,13 @@ fn main () {
     let mut inputs: Vec<Vec<f32>> = Vec::new();
     let mut targets: Vec<Vec<f32>> = Vec::new();
 
-    for i in 1..10 {
-        inputs.push(vec![i as f32]);
-        targets.push(vec![(2 * i) as f32]);
+    for _ in 0..100 {
+        for i in 1..10 {
+            inputs.push(vec![i as f32]);
+            targets.push(vec![(2 * i) as f32]);
+        }
     }
+    
 
    let test_before = my_net.feed_forward(&inputs[0]);
    println!("{:#?}", test_before);
@@ -146,5 +152,8 @@ fn main () {
 
    let test_after = my_net.feed_forward(&inputs[0]);
    println!("{:#?}", test_after);
+
+   let second_test = my_net.feed_forward(&vec![153.7]);
+   println!("{:#?}", second_test);
 
 }
