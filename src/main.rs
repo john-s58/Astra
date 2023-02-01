@@ -1,7 +1,28 @@
+use std::f32::consts::PI;
+
 use nalgebra::DMatrix;
 use rand::Rng;
 use rand_distr::StandardNormal;
 use serde::{Deserialize, Serialize};
+
+#[derive(PartialEq, Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum ActivationFunction {
+    Leaky_ReLU,
+    Softmax,
+    Sigmoid,
+    Tanh
+}
+
+
+pub fn leaky_relu(input: DMatrix<f32>, derivative: bool) -> DMatrix<f32> {
+    if derivative {
+        input.map(|x| if x > 0.0 {1.0} else {0.33})
+
+    }
+    else {
+        input.map(|x| if x > 0.0 {x} else {0.33 * x})
+    }
+}
 
 pub trait Layer {
     fn feed_forward(&mut self, inputs: &Vec<f32>) -> Vec<f32>;
@@ -18,13 +39,12 @@ pub struct LayerDense {
     size: usize,
     weights: DMatrix<f32>,
     biases: DMatrix<f32>,
-    activation: fn(f32) -> f32,
-    activation_derivative: fn(f32) -> f32,
+    activation: ActivationFunction,
     input: Option<DMatrix<f32>>,
     output: Option<DMatrix<f32>>,
 }
 impl LayerDense {
-    fn new(size: usize, input_size: usize, activation: fn(f32) -> f32, activation_derivative: fn(f32) -> f32) -> Self{
+    fn new(size: usize, input_size: usize, activation: ActivationFunction) -> Self{
         let mut rng = rand::thread_rng();
         Self {
             size,
@@ -32,7 +52,6 @@ impl LayerDense {
             size, &StandardNormal, &mut rng).map(|x| if x == 0.0 {x + 0.3} else {x}),
             biases:  DMatrix::<f32>::from_vec(1, size, vec![0.0f32; size]),
             activation,
-            activation_derivative,
             input: None,
             output: None,
         }
@@ -48,14 +67,24 @@ impl Layer for LayerDense{
 
         self.output = Some((self.input.as_ref().unwrap() *
         &self.weights 
-        + self.biases.clone()).map(self.activation));
+        + self.biases.clone()));
+
+        match self.activation {
+            ActivationFunction::Leaky_ReLU => {self.output = Some(leaky_relu(self.output.clone().unwrap(), false))},
+            _ => (),
+        }
 
         self.output.clone().unwrap().data.into()
 
     }
 
     fn back_propagation(&mut self, error: DMatrix<f32>, learning_rate: f32) -> DMatrix<f32>{
-        let err = error.component_mul(&self.output.as_ref().unwrap().map(self.activation_derivative));
+
+        let delta_output = match self.activation {
+            ActivationFunction::Leaky_ReLU => {leaky_relu(self.output.clone().unwrap(), true)},
+            _ => {self.output.clone().unwrap()},
+        };
+        let err = error.component_mul(&delta_output);
 
         // println!("self.weights = {:#?}", self.weights.data.as_vec());
         // println!("self.biases = {:#?}", self.biases.data.as_vec());
@@ -121,10 +150,8 @@ impl Net{
 }
 
 fn main () {
-    let mut l1 = Box::new(LayerDense::new(1, 1, |x| if x > 0.0 {x} else {0.33 * x},
-                                                                 |x| if x > 0.0 {1.0} else {0.33}));
-    // let mut l2 = Box::new(LayerDense::new(1, 3, |x| x.max(0.0),
-    //                                                                 |x| if x > 0.0 {1.0} else {0.0}));
+    let mut l1 = Box::new(LayerDense::new(1, 1, ActivationFunction::Leaky_ReLU));
+    //let mut l2 = Box::new(LayerDense::new(3, 4, ActivationFunction::Leaky_ReLU));
 
 
     let mut my_net = Net::new();
@@ -141,7 +168,7 @@ fn main () {
             targets.push(vec![(2 * i) as f32]);
         }
     }
-    
+
 
    let test_before = my_net.feed_forward(&inputs[0]);
    println!("{:#?}", test_before);
@@ -153,7 +180,10 @@ fn main () {
    let test_after = my_net.feed_forward(&inputs[0]);
    println!("{:#?}", test_after);
 
-   let second_test = my_net.feed_forward(&vec![153.7]);
-   println!("{:#?}", second_test);
+//    let second_test = my_net.feed_forward(&vec![153.7, 153.7, 153.7]);
+//    println!("{:#?}", second_test);
+
+
+   
 
 }
