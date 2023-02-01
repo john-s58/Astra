@@ -1,28 +1,9 @@
 use std::f32::consts::PI;
-
+use core::fmt::Debug;
 use nalgebra::DMatrix;
 use rand::Rng;
 use rand_distr::StandardNormal;
 use serde::{Deserialize, Serialize};
-
-#[derive(PartialEq, Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum ActivationFunction {
-    Leaky_ReLU,
-    Softmax,
-    Sigmoid,
-    Tanh
-}
-
-
-pub fn leaky_relu(input: DMatrix<f32>, derivative: bool) -> DMatrix<f32> {
-    if derivative {
-        input.map(|x| if x > 0.0 {1.0} else {0.33})
-
-    }
-    else {
-        input.map(|x| if x > 0.0 {x} else {0.33 * x})
-    }
-}
 
 pub trait Layer {
     fn feed_forward(&mut self, inputs: &Vec<f32>) -> Vec<f32>;
@@ -34,17 +15,69 @@ pub trait Layer {
     fn get_biases(&self) -> DMatrix<f32>;
 }
 
-#[derive(Clone, Debug)]
+pub trait Activation {
+    fn call(&self, x: DMatrix<f32>) -> DMatrix<f32>;
+
+    fn derive(&self, x: DMatrix<f32>) -> DMatrix<f32>;
+}
+
+struct Leaky_ReLU;
+
+impl Leaky_ReLU {
+    fn new() -> Self{
+        Self
+    }
+    fn into_box(self) -> Box<Self> {
+        Box::new(self)
+    }
+}
+
+impl Activation for Leaky_ReLU {
+    fn call(&self, x: DMatrix<f32>) -> DMatrix<f32>{
+        x.map(|n| if n > 0.0 {n} else {0.33 * n})
+    }
+
+    fn derive(&self, x: DMatrix<f32>) -> DMatrix<f32>{
+        x.map(|n| if n > 0.0 {1.0} else {0.33})
+
+    }
+
+}
+
+struct Softmax;
+
+impl Softmax {
+    fn new() -> Self{
+        Self
+    }
+    fn into_box(self) -> Box<Self> {
+        Box::new(self)
+    }
+}
+
+impl Activation for Softmax {
+    fn call(&self, x: DMatrix<f32>) -> DMatrix<f32>{
+        let input_exp = x.exp();
+        input_exp.clone() / input_exp.sum()
+    }
+
+    fn derive(&self, x: DMatrix<f32>) -> DMatrix<f32>{
+        let sm = self.call(x);
+        sm.map(|n| n * (1.0 - n))
+    }
+
+}
+
 pub struct LayerDense {
     size: usize,
     weights: DMatrix<f32>,
     biases: DMatrix<f32>,
-    activation: ActivationFunction,
+    activation: Box<dyn Activation>,
     input: Option<DMatrix<f32>>,
     output: Option<DMatrix<f32>>,
 }
 impl LayerDense {
-    fn new(size: usize, input_size: usize, activation: ActivationFunction) -> Self{
+    fn new(size: usize, input_size: usize, activation: Box<dyn Activation>) -> Self{
         let mut rng = rand::thread_rng();
         Self {
             size,
@@ -64,15 +97,13 @@ impl LayerDense {
 impl Layer for LayerDense{
     fn feed_forward(&mut self, inputs: &Vec<f32>) -> Vec<f32>{
         self.input = Some(DMatrix::from_vec(1, inputs.len(), inputs.to_vec()));
+        assert_eq!(inputs.len(), self.weights.nrows(), "input does not match layer input size");
 
         self.output = Some((self.input.as_ref().unwrap() *
         &self.weights 
         + self.biases.clone()));
 
-        match self.activation {
-            ActivationFunction::Leaky_ReLU => {self.output = Some(leaky_relu(self.output.clone().unwrap(), false))},
-            _ => (),
-        }
+        self.output =Some(self.activation.call(self.output.clone().unwrap()));
 
         self.output.clone().unwrap().data.into()
 
@@ -80,16 +111,10 @@ impl Layer for LayerDense{
 
     fn back_propagation(&mut self, error: DMatrix<f32>, learning_rate: f32) -> DMatrix<f32>{
 
-        let delta_output = match self.activation {
-            ActivationFunction::Leaky_ReLU => {leaky_relu(self.output.clone().unwrap(), true)},
-            _ => {self.output.clone().unwrap()},
-        };
+
+        let delta_output = self.activation.derive(self.output.clone().unwrap());
         let err = error.component_mul(&delta_output);
 
-        // println!("self.weights = {:#?}", self.weights.data.as_vec());
-        // println!("self.biases = {:#?}", self.biases.data.as_vec());
-        // println!("self.output = {:#?}", self.output.clone().unwrap().data.as_vec());
-        // println!("err = {:#?}", err.data.as_vec());
 
         let delta_weights = self.input.as_ref().unwrap().transpose() * &err;
         let delta_biases = &err.row_sum() / err.nrows() as f32;
@@ -98,10 +123,6 @@ impl Layer for LayerDense{
         self.biases -= delta_biases * learning_rate;
 
 
-        // println!("self.weights POST GRADIENT = {:#?}", self.weights.data.as_vec());
-        // println!("self.biases POST GRADIENT = {:#?}", self.biases.data.as_vec());
-
-        // println!("{:#?}", err.data.as_vec());
         err * self.weights.transpose()
     }
 
@@ -136,54 +157,117 @@ impl Net{
     }
 
     pub fn back_propagation(&mut self, input: &Vec<f32>, target: &Vec<f32>) {
+
         let mut output = self.feed_forward(input);
         let mut error: Vec<f32> = target.iter().zip(output.iter()).map(|(y, x)| x - y).collect();
 
         let mut error_mat = DMatrix::<f32>::from_vec(1, error.len(), error.clone());
 
-       // println!("net initial error_mat {:#?}", error_mat.data.as_vec());
-
-        for l in self.layers.iter_mut().rev() {
+        for l in self.layers.iter_mut().rev() {;
             error_mat = l.back_propagation(error_mat, 0.01);
         }
     }
 }
 
 fn main () {
-    let mut l1 = Box::new(LayerDense::new(1, 1, ActivationFunction::Leaky_ReLU));
-    //let mut l2 = Box::new(LayerDense::new(3, 4, ActivationFunction::Leaky_ReLU));
-
+    let mut l1 = Box::new(LayerDense::new(6, 2, Box::new(Leaky_ReLU::new())));
+    let mut l2 = Box::new(LayerDense::new(18, 6, Box::new(Leaky_ReLU::new())));
+    let mut l3 = Box::new(LayerDense::new(3, 18, Box::new(Softmax::new())));
 
     let mut my_net = Net::new();
 
     my_net.add_layer(l1);
-   //my_net.add_layer(l2);
+    my_net.add_layer(l2);
+    my_net.add_layer(l3);
 
     let mut inputs: Vec<Vec<f32>> = Vec::new();
     let mut targets: Vec<Vec<f32>> = Vec::new();
 
-    for _ in 0..100 {
-        for i in 1..10 {
-            inputs.push(vec![i as f32]);
-            targets.push(vec![(2 * i) as f32]);
-        }
+    // for _ in 0..100 {
+    //     for i in 1..10 {
+    //         inputs.push(vec![i as f32]);
+    //         targets.push(vec![(2 * i) as f32]);
+    //     }
+    // }
+
+    // inputs = generate_2d_cluster_dataset(100000);
+    // for i in  0..inputs.len(){
+    //     targets.push(vec![if i < inputs.len() / 2 {1.0} else {0.0}, if i < inputs.len() / 2 {0.0} else {1.0}]);
+    // }
+
+    inputs = generate_3d_cluster_dataset(100000);
+    for _ in 0..inputs.len() / 3 {
+        targets.push(vec![1.0, 0.0, 0.0]);
+    }
+    for _ in inputs.len() / 3..2*inputs.len() / 3 {
+        targets.push(vec![0.0, 1.0, 0.0]);
+    }
+    for _ in 2*inputs.len() / 3..inputs.len() {
+        targets.push(vec![0.0, 0.0, 1.0]);
     }
 
+    let test_before = my_net.feed_forward(&inputs[0]);
+    println!("{:#?}", test_before);
 
-   let test_before = my_net.feed_forward(&inputs[0]);
-   println!("{:#?}", test_before);
+    let test_before2 = my_net.feed_forward(&inputs[50000]);
+    println!("{:#?}", test_before2);
 
-   for (ins, targ) in inputs.iter().zip(targets.iter()){
-        my_net.back_propagation(ins, targ);
-   }
+    let test_before3 = my_net.feed_forward(&inputs[99000]);
+    println!("{:#?}", test_before3);
 
-   let test_after = my_net.feed_forward(&inputs[0]);
-   println!("{:#?}", test_after);
+    for (ins, targ) in inputs.iter().zip(targets.iter()){
+            my_net.back_propagation(ins, targ);
+    }
 
-//    let second_test = my_net.feed_forward(&vec![153.7, 153.7, 153.7]);
-//    println!("{:#?}", second_test);
+    let test_after = my_net.feed_forward(&inputs[0]);
+    println!("{:#?}", test_after);
+
+    println!("inputs 50k {:#?}", &inputs[50000]);
+    println!("targets 50k {:#?}", &targets[50000]);
+    let test_after2 = my_net.feed_forward(&inputs[50000]);
+    println!("predict after 50k {:#?}", test_after2);
+
+    let test_after3 = my_net.feed_forward(&inputs[99000]);
+    println!("{:#?}", test_after3);
+
+}
 
 
-   
 
+fn generate_2d_cluster_dataset(num_samples: usize) -> Vec<Vec<f32>> {
+    let mut rng = rand::thread_rng();
+    let mut data = Vec::with_capacity(num_samples);
+    for _ in 0..num_samples / 2 {
+        let x1 = rng.gen_range(-5.0..5.0);
+        let x2 = rng.gen_range(-5.0..5.0);
+        data.push(vec![x1, x2]);
+    }
+    for _ in num_samples / 2..num_samples {
+        let x1 = rng.gen_range(5.0..15.0);
+        let x2 = rng.gen_range(5.0..15.0);
+        data.push(vec![x1, x2]);
+    }
+    data
+}
+
+
+fn generate_3d_cluster_dataset(num_samples: usize) -> Vec<Vec<f32>> {
+    let mut rng = rand::thread_rng();
+    let mut data = Vec::with_capacity(num_samples);
+    for _ in 0..num_samples / 3 {
+        let x1 = rng.gen_range(1.0..5.0);
+        let x2 = rng.gen_range(1.0..5.0);
+        data.push(vec![x1, x2]);
+    }
+    for _ in num_samples / 3..2*num_samples / 3 {
+        let x1 = rng.gen_range(6.0..10.0);
+        let x2 = rng.gen_range(6.0..10.0);
+        data.push(vec![x1, x2]);
+    }
+    for _ in 2*num_samples / 3..num_samples {
+        let x1 = rng.gen_range(11.0..15.0);
+        let x2 = rng.gen_range(11.0..15.0);
+        data.push(vec![x1, x2]);
+    }
+    data
 }
