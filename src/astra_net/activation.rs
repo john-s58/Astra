@@ -6,18 +6,15 @@ pub trait Activation {
     fn derive(&self, x: DMatrix<f32>) -> DMatrix<f32>;
 }
 
-pub struct Leaky_ReLU;
+pub struct LeakyReLU;
 
-impl Leaky_ReLU {
+impl LeakyReLU {
     pub fn new() -> Self{
         Self
     }
-    fn into_box(self) -> Box<Self> {
-        Box::new(self)
-    }
 }
 
-impl Activation for Leaky_ReLU {
+impl Activation for LeakyReLU {
     fn call(&self, x: DMatrix<f32>) -> DMatrix<f32>{
         x.map(|n| if n > 0.0 {n} else {0.33 * n})
     }
@@ -34,9 +31,6 @@ pub struct Softmax;
 impl Softmax {
     pub fn new() -> Self{
         Self
-    }
-    fn into_box(self) -> Box<Self> {
-        Box::new(self)
     }
 }
 
