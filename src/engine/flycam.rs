@@ -7,16 +7,16 @@ use bevy::window::CursorGrabMode;
 #[derive(Resource, Default)]
 struct InputState {
     reader_motion: ManualEventReader<MouseMotion>,
-    pitch: f32,
-    yaw: f32,
+    pitch: f64,
+    yaw: f64,
 }
 
 /// Mouse sensitivity and movement speed
 
 #[derive(Resource)]
 pub struct MovementSettings {
-    pub sensitivity: f32,
-    pub speed: f32,
+    pub sensitivity: f64,
+    pub speed: f64,
 }
 
 impl Default for MovementSettings {
@@ -229,8 +229,8 @@ fn setup(
     });
 
     let mut r = 0.0;
-    while r < std::f32::consts::PI * 2.0 {
-		let value = r / (std::f32::consts::PI * 2.0);
+    while r < std::f64::consts::PI * 2.0 {
+		let value = r / (std::f64::consts::PI * 2.0);
 
         commands.spawn(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Icosphere { subdivisions: 4,
@@ -239,7 +239,7 @@ fn setup(
             transform: Transform::from_xyz(r.cos() * 4.0, 0.0, r.sin() * 4.0),
             ..Default::default()
         });
-		r += std::f32::consts::PI / 10.0;
+		r += std::f64::consts::PI / 10.0;
 	}
 
     

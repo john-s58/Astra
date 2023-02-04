@@ -1,9 +1,9 @@
-use nalgebra::DMatrix;
+use ndarray::{Array, Array1, Array2, Array3, ArrayView, ShapeBuilder, array};
 
 pub trait Activation {
-    fn call(&self, x: DMatrix<f32>) -> DMatrix<f32>;
+    fn call(&self, x: Array1<f64>) -> Array1<f64>;
 
-    fn derive(&self, x: DMatrix<f32>) -> DMatrix<f32>;
+    fn derive(&self, x: Array1<f64>) -> Array1<f64>;
 }
 
 pub struct LeakyReLU;
@@ -15,12 +15,12 @@ impl LeakyReLU {
 }
 
 impl Activation for LeakyReLU {
-    fn call(&self, x: DMatrix<f32>) -> DMatrix<f32>{
-        x.map(|n| if n > 0.0 {n} else {0.33 * n})
+    fn call(&self, x: Array1<f64>) -> Array1<f64>{
+        x.mapv(|n| if n > 0.0 {n} else {0.33 * n})
     }
 
-    fn derive(&self, x: DMatrix<f32>) -> DMatrix<f32>{
-        x.map(|n| if n > 0.0 {1.0} else {0.33})
+    fn derive(&self, x: Array1<f64>) -> Array1<f64>{
+        x.mapv(|n| if n > 0.0 {1.0} else {0.33})
 
     }
 
@@ -35,14 +35,14 @@ impl Softmax {
 }
 
 impl Activation for Softmax {
-    fn call(&self, x: DMatrix<f32>) -> DMatrix<f32>{
-        let input_exp = x.exp();
+    fn call(&self, x: Array1<f64>) -> Array1<f64>{
+        let input_exp = x.mapv(|n| n.exp());
         input_exp.clone() / input_exp.sum()
     }
 
-    fn derive(&self, x: DMatrix<f32>) -> DMatrix<f32>{
+    fn derive(&self, x: Array1<f64>) -> Array1<f64>{
         let sm = self.call(x);
-        sm.map(|n| n * (1.0 - n))
+        sm.mapv(|n| n * (1.0 - n))
     }
 
 }
