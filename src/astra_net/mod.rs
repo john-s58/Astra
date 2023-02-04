@@ -2,7 +2,7 @@ pub mod layer;
 pub mod activation;
 use crate::astra_net::layer::Layer;
 
-use ndarray::{Array, Array1, Array2, Array3, ArrayView, ShapeBuilder, array, Zip};
+use ndarray::{Array1, Array2, Zip};
 
 
 
@@ -39,15 +39,29 @@ impl Net{
 
         let output: Array1<f64> = self.feed_forward(input);
 
+        if output.iter().any(|v| v.is_nan()){
+            panic!("Panic in net bp after feed forward");
+        }
+
         let mut error: Array1<f64> = Array1::from(output.to_owned());
 
         Zip::from(&mut error)
             .and(target)
             .for_each(|x, &y| *x -= y);
-    
+
+        // let error_sum = error.sum();
+        // println!("{:#?}", error_sum);
+
+        // if error_sum == 0.0 ||  error_sum.is_nan(){
+        //     println!("OUTPUT {:#?}", output);
+        //     println!("TARGET {:#?}", target);
+        // }
+        
+        
 
         for l in self.layers.iter_mut().rev() {
             error = l.back_propagation(error, 0.01);
+            println!("ERROR FORM NET BP LOOP {:#?}", error);
         }
 
     }
