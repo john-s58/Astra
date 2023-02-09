@@ -31,7 +31,12 @@ impl Tensor {
             0 => {panic!("Empty Tenosr Tranpose");},
             1 => {self.to_owned()},
             2 => {
-                self.to_owned()
+                let mut data_transposed = Vec::<f64>::from_iter((0..self.data.len()).map(|_| 0.0));
+                Self{
+                    data: self.data.clone(),
+                    shape: self.shape.clone().into_iter().rev().collect(),
+                    ndim: self.ndim,
+                }
             },
             _ => {
                 self.to_owned()
@@ -57,6 +62,10 @@ impl Tensor {
         assert!(position_in_vec < self.data.len() as u64, "Out Of Bound");
 
         self.data[position_in_vec as usize].to_owned()
+    }
+
+    pub fn get_element_mut(&mut self, position: Vec<u64>) -> &mut f64 {
+        todo!()
     }
 
     pub fn map(self, fun: fn(f64) -> f64) -> Self {
