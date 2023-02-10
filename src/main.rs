@@ -16,24 +16,20 @@ use ndarray::{Array1, Array2, array};
 
 
 fn main() {
-    let t = Tensor::from_vec(vec![1.0,2.0,3.0,4.0], vec![2,2]);
+    let _ = Tensor::new();
 
-    let y = t.transpose();
+    let t = Tensor::from_vec(vec![1.0,2.0,3.0,4.0,5.0,6.0], vec![2,3]);
 
-    let x = t.get_element(vec![0, 1]);
+    let y = 5.0 * t.transpose() * 3.0;
 
-    println!("{}", x);
+    let tt = t.clone() * t.clone();
+
+    let z = y.clone() + 2.0 * y.clone();
+
+    println!("pre transpose {:#?}", tt);
+    println!("post transpose {:#?}", z);
 
 }
-
-
-
-
-
-
-
-
-
 
 // fn main () {
 //     let l1 = Box::new(LayerDense::new(6, 2, Box::new(LeakyReLU::new(0.1))));
