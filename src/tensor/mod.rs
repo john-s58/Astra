@@ -24,6 +24,22 @@ impl Tensor {
         }
     }
 
+    pub fn from_element(element: f64, shape: Vec<u64>) -> Self {
+        let mut data: Vec<f64> = Vec::new();
+            for _ in 0..shape.clone().into_iter().reduce(|x, y| x * y).unwrap(){
+                data.push(element);
+            }
+            Tensor { 
+                data, 
+                shape: shape.clone(), 
+                ndim: shape.len() 
+            }
+    }
+
+    pub fn identity() -> Self {
+        todo!()
+    }
+
     pub fn transpose(&self) -> Self {
         match self.ndim {
             0 => {panic!("Empty Tenosr Tranpose");},
@@ -96,6 +112,58 @@ impl Tensor {
             return self.data[0]
         }
         self.data.clone().into_iter().reduce(|x, y| x + y).unwrap()
+    }
+
+
+    /*
+        def dot(self, other):
+        if self.dimension_b != other.dimension_a:
+            raise ValueError("Incompatible dimensions for dot product")
+        result = [0] * (self.dimension_a * other.dimension_b)
+        other_t = other.transpose()
+        for row in range(self.dimension_a):
+            for col in range(other.dimension_b):
+                dot_product = sum(a * b for a, b in zip(self[(row, col):(row, self.dimension_b)],
+                                                       other_t[(col, row):(col, other.dimension_a)]))
+                result[row * other.dimension_b + col] = dot_product
+        return Matrix(result, self.dimension_a, other.dimension_b)
+ */
+    pub fn dot(&self, rhs: &Self) -> Self{
+        match self.ndim {
+            1 => {todo!()},
+            2 => {
+                match rhs.ndim {
+                    1 => todo!() ,
+                    2 => {
+                        assert!(self.shape[1] == rhs.shape[0], "can't dot matrix with dims {}, {}
+                                                                with matrix with dims {}, {}",
+                                                                self.shape[0], self.shape[1], rhs.shape[0], rhs.shape[1]);
+                        let mut dotted = Tensor::from_element(0.0f64, vec![self.shape[0], rhs.shape[1]]);
+                        let rhs_t = rhs.transpose();         
+                        for row in 0..self.shape[0] {
+                            for col in 0..rhs.shape[1]{
+                                todo!()
+                            }
+                        }
+                        dotted
+                    },
+                    _ => todo!()
+                }
+            },
+            _ => self.clone()
+        }
+    }
+
+    pub fn inverse(&self) -> Self{
+        todo!()
+    }
+
+    pub fn diag(&self) -> Vec<f64>{
+        todo!()
+    }
+
+    pub fn push_value(&mut self, val: f64){
+        todo!()
     }
 }
 
@@ -195,6 +263,50 @@ impl std::ops::Sub<Tensor> for Tensor{
             data: self.data.into_iter().zip(rhs.data.into_iter()).map(|(x, y)| x - y).collect(),
             shape: self.shape,
             ndim: self.ndim
+        }
+    }
+}
+
+pub struct TensorIterator {
+    data: Vec<f64>,
+    shape: Vec<u64>,
+    idx: usize,
+}
+
+impl TensorIterator{
+    pub fn into_tensor(self) -> Tensor {
+        let ndim = self.shape.len();
+        Tensor{
+            data: self.data,
+            shape: self.shape,
+            ndim,
+        }
+    }
+}
+
+impl Iterator for TensorIterator {
+    type Item = f64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx < self.data.len(){
+            self.idx += 1;
+            Some(self.data[self.idx-1])
+        }
+        else {
+            None
+        }
+    }
+}
+
+impl IntoIterator for Tensor {
+    type IntoIter = TensorIterator;
+    type Item = f64;
+
+    fn into_iter(self) -> Self::IntoIter {
+        TensorIterator {
+            data: self.data,
+            shape: self.shape,
+            idx: 0
         }
     }
 }
