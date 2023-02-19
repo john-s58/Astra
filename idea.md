@@ -5,3 +5,5 @@ goal is to survive / reach a point
 derive from that
 neural network library that contains both regular training and generation training
 astophysics simulations 
+
+test_commits
