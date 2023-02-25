@@ -1,8 +1,8 @@
 #[derive(Clone, Debug)]
 pub struct Tensor {
-    data: Vec<f64>,
-    shape: Vec<usize>,
-    ndim: usize,
+    pub data: Vec<f64>,
+    pub shape: Vec<usize>,
+    pub ndim: usize,
 }
 
 // row first [3, 4] -> 3 rows 4 columns
@@ -38,6 +38,10 @@ impl Tensor {
             shape: shape.clone(),
             ndim: shape.len(),
         }
+    }
+
+    pub fn from_fn(shape: Vec<usize>, func: fn(f32) -> f32) -> Tensor{
+        todo!()
     }
 
     pub fn reshape(self, new_shape: Vec<usize>) -> Option<Tensor>{
@@ -162,6 +166,14 @@ impl Tensor {
 
     pub fn push_value(&mut self, val: f64) {
         todo!()
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn to_vec(self) -> Vec<f64> {
+        self.data
     }
 }
 
@@ -294,6 +306,22 @@ impl std::ops::Sub<Tensor> for Tensor {
                 .into_iter()
                 .zip(rhs.data.into_iter())
                 .map(|(x, y)| x - y)
+                .collect(),
+            shape: self.shape,
+            ndim: self.ndim,
+        }
+    }
+}
+
+impl std::ops::Sub<f64> for Tensor {
+    type Output = Tensor;
+
+    fn sub(self, rhs: f64) -> Self::Output {
+        Tensor {
+            data: self
+                .data
+                .into_iter()
+                .map(|x| x - rhs)
                 .collect(),
             shape: self.shape,
             ndim: self.ndim,

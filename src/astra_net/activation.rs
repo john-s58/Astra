@@ -1,9 +1,9 @@
-use ndarray::Array1;
+use crate::tensor::Tensor;
 
 pub trait Activation {
-    fn call(&self, x: Array1<f64>) -> Array1<f64>;
+    fn call(&self, x: Tensor) -> Tensor;
 
-    fn derive(&self, x: Array1<f64>) -> Array1<f64>;
+    fn derive(&self, x: Tensor) -> Tensor;
 
     fn print_self(&self);
 }
@@ -19,12 +19,22 @@ impl LeakyReLU {
 }
 
 impl Activation for LeakyReLU {
-    fn call(&self, x: Array1<f64>) -> Array1<f64> {
-        x.mapv(|n| if n > 0.0 { n } else { self.alpha * n })
+    fn call(&self, x: Tensor) -> Tensor {
+        Tensor::from_vec(x.clone()
+                                .to_vec()
+                                .into_iter()
+                                .map(|n| if n > 0.0 { n } else { self.alpha * n })
+                                .collect()
+                                , x.shape)
     }
 
-    fn derive(&self, x: Array1<f64>) -> Array1<f64> {
-        x.mapv(|n| if n > 0.0 { 1.0 } else { self.alpha })
+    fn derive(&self, x: Tensor) -> Tensor {
+        Tensor::from_vec(x.clone()
+                                .to_vec()
+                                .into_iter()
+                                .map(|n| if n > 0.0 { 1.0 } else { self.alpha })
+                                .collect()
+                                , x.shape)
     }
 
     fn print_self(&self) {
@@ -41,14 +51,25 @@ impl Softmax {
 }
 
 impl Activation for Softmax {
-    fn call(&self, x: Array1<f64>) -> Array1<f64> {
-        let input_exp = x.mapv(|n| n.exp());
+    fn call(&self, x: Tensor) -> Tensor {
+        let input_exp = Tensor::from_vec(x.clone()
+                                                        .to_vec()
+                                                        .into_iter()
+                                                        .map(|n| n.exp())
+                                                        .collect()
+                                                        , x.shape);
+        
         input_exp.clone() / input_exp.sum()
     }
 
-    fn derive(&self, x: Array1<f64>) -> Array1<f64> {
+    fn derive(&self, x: Tensor) -> Tensor {
         let sm = self.call(x);
-        sm.mapv(|n| n * (1.0 - n))
+        Tensor::from_vec(sm.clone()
+                                .to_vec()
+                                .into_iter()
+                                .map(|n| n * (1.0 - n))
+                                .collect()
+                                , sm.shape)
     }
 
     fn print_self(&self) {

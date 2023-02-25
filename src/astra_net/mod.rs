@@ -2,7 +2,7 @@ pub mod activation;
 pub mod layer;
 use crate::astra_net::layer::Layer;
 
-use ndarray::{Array1, Array2, Zip};
+use crate::tensor::Tensor;
 
 pub struct Net {
     layers: Vec<Box<dyn Layer>>,
@@ -25,7 +25,7 @@ impl Net {
         self.layers.push(layer);
     }
 
-    pub fn feed_forward(&mut self, input: &Array1<f64>) -> Array1<f64> {
+    pub fn feed_forward(&mut self, input: &Tensor) -> Tensor {
         let mut output = input.to_owned();
         for l in self.layers.iter_mut() {
             output = l.feed_forward(&output);
@@ -33,28 +33,22 @@ impl Net {
         output
     }
 
-    pub fn back_propagation(&mut self, input: &Array1<f64>, target: &Array1<f64>) {
-        let output: Array1<f64> = self.feed_forward(input);
+    pub fn back_propagation(&mut self, input: &Tensor, target: &Tensor) {
+        let output = self.feed_forward(input);
 
-        if output.iter().any(|v| v.is_nan()) {
-            panic!("Panic in net bp after feed forward");
-        }
+        let mut error = Tensor::from_vec(output.clone().to_vec(), vec![output.len()]);
 
-        let mut error: Array1<f64> = Array1::from(output.to_owned());
+        error = Tensor::from_vec(error.to_vec()
+                                                .into_iter()
+                                                .zip(target.to_owned().to_vec()
+                                                .into_iter())
+                                                .map(|(x, y)| x-y)
+                                                .collect(),
+                                                vec![output.len()]);
 
-        Zip::from(&mut error).and(target).for_each(|x, &y| *x -= y);
-
-        // let error_sum = error.sum();
-        // println!("{:#?}", error_sum);
-
-        // if error_sum == 0.0 ||  error_sum.is_nan(){
-        //     println!("OUTPUT {:#?}", output);
-        //     println!("TARGET {:#?}", target);
-        // }
 
         for l in self.layers.iter_mut().rev() {
             error = l.back_propagation(error, 0.01);
-            println!("ERROR FORM NET BP LOOP {:#?}", error);
         }
     }
 }
