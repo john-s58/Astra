@@ -18,9 +18,11 @@ impl Tensor {
 
     pub fn from_vec(data: Vec<f64>, shape: Vec<usize>) -> Self {
         assert!(!shape.contains(&0), "shape contains 0");
-        assert_eq!(data.len(),
-            shape.clone().into_iter().reduce(|a, b| a*b).unwrap() as usize,
-            "shape does not match data");
+        assert_eq!(
+            data.len(),
+            shape.clone().into_iter().reduce(|a, b| a * b).unwrap() as usize,
+            "shape does not match data"
+        );
 
         Self {
             data,
@@ -40,16 +42,28 @@ impl Tensor {
         }
     }
 
-    pub fn from_fn(shape: Vec<usize>, func: fn(f32) -> f32) -> Tensor{
-        todo!()
+    pub fn from_fn(shape: Vec<usize>, func: impl Fn() -> f64) -> Tensor {
+        Self {
+            data: (0..shape.clone().into_iter().reduce(|x, y| x * y).unwrap())
+                .map(|_| func())
+                .collect(),
+            shape: shape.clone(),
+            ndim: shape.len(),
+        }
     }
 
-    pub fn reshape(self, new_shape: Vec<usize>) -> Option<Tensor>{
+    pub fn reshape(self, new_shape: Vec<usize>) -> Option<Tensor> {
         assert!(!new_shape.contains(&0), "shape contains 0");
-        if self.shape.clone().into_iter().reduce(|a, b| a*b).unwrap() != new_shape.clone().into_iter().reduce(|a, b| a*b).unwrap() {
+        if self.shape.clone().into_iter().reduce(|a, b| a * b).unwrap()
+            != new_shape.clone().into_iter().reduce(|a, b| a * b).unwrap()
+        {
             return None;
         }
-        Some(Tensor { data: self.data, shape: new_shape.clone(), ndim: new_shape.len() })
+        Some(Tensor {
+            data: self.data,
+            shape: new_shape.clone(),
+            ndim: new_shape.len(),
+        })
     }
 
     pub fn identity(shape: Vec<usize>) -> Self {
@@ -69,7 +83,8 @@ impl Tensor {
                 transposed.shape = transposed.shape.into_iter().rev().collect();
                 for i in 0..self.shape[1] {
                     for j in 0..self.shape[0] {
-                        *transposed.get_element_mut(&[i, j]).unwrap() = self.get_element(&[j, i]).unwrap().to_owned();
+                        *transposed.get_element_mut(&[i, j]).unwrap() =
+                            self.get_element(&[j, i]).unwrap().to_owned();
                     }
                 }
                 transposed
@@ -115,9 +130,7 @@ impl Tensor {
         self.data.get_mut(index)
     }
 
-    pub fn set_element(&mut self, indices: &[usize], value: f64){
-
-    }
+    pub fn set_element(&mut self, indices: &[usize], value: f64) {}
 
     pub fn map(self, fun: fn(f64) -> f64) -> Self {
         Self {
@@ -172,8 +185,8 @@ impl Tensor {
         self.data.len()
     }
 
-    pub fn to_vec(self) -> Vec<f64> {
-        self.data
+    pub fn to_vec(&self) -> Vec<f64> {
+        self.data.to_owned()
     }
 }
 
@@ -318,11 +331,7 @@ impl std::ops::Sub<f64> for Tensor {
 
     fn sub(self, rhs: f64) -> Self::Output {
         Tensor {
-            data: self
-                .data
-                .into_iter()
-                .map(|x| x - rhs)
-                .collect(),
+            data: self.data.into_iter().map(|x| x - rhs).collect(),
             shape: self.shape,
             ndim: self.ndim,
         }
@@ -369,5 +378,11 @@ impl IntoIterator for Tensor {
             shape: self.shape,
             idx: 0,
         }
+    }
+}
+
+impl Default for Tensor {
+    fn default() -> Self {
+        Self::new()
     }
 }

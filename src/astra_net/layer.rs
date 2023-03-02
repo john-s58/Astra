@@ -4,7 +4,6 @@ use ndarray_rand::rand_distr::{Distribution, Normal};
 
 use crate::tensor::Tensor;
 
-
 pub trait Layer {
     fn feed_forward(&mut self, inputs: &Tensor) -> Tensor;
 
@@ -26,7 +25,12 @@ impl LayerDense {
 
         Self {
             size,
-            weights: Tensor::from_vec((0..size*input_size).map(|_| normal.sample(&mut rng)).collect(), vec![input_size, size]),
+            weights: Tensor::from_vec(
+                (0..size * input_size)
+                    .map(|_| normal.sample(&mut rng))
+                    .collect(),
+                vec![input_size, size],
+            ) * (2.0 / (input_size + size) as f64).sqrt(),
             biases: Tensor::from_element(0.0, vec![size]),
             activation,
             input: None,
@@ -47,13 +51,18 @@ impl Layer for LayerDense {
 
         let inputs_mat = inputs.to_owned().reshape(vec![1, inputs.len()]).unwrap();
 
-        self.output = Some(inputs_mat.dot(&self.weights).unwrap() + self.biases.clone().reshape(vec![1, self.biases.len()]).unwrap());
+        self.output = Some(
+            inputs_mat.dot(&self.weights).unwrap()
+                + self
+                    .biases
+                    .clone()
+                    .reshape(vec![1, self.biases.len()])
+                    .unwrap(),
+        );
 
         self.output = Some(self.activation.call(self.output.clone().unwrap()));
 
         self.output.clone().unwrap()
-
-        
     }
 
     fn back_propagation(&mut self, error: Tensor, learning_rate: f64) -> Tensor {
@@ -61,20 +70,21 @@ impl Layer for LayerDense {
 
         let err = error.clone().reshape(vec![1, error.len()]).unwrap() * delta_output;
 
-
-        let input_mat = self.input.clone().unwrap().reshape(vec![1, self.input.clone().unwrap().len()]).unwrap();
+        let input_mat = self
+            .input
+            .clone()
+            .unwrap()
+            .reshape(vec![1, self.input.clone().unwrap().len()])
+            .unwrap();
 
         let err_mat = err.clone().reshape(vec![1, err.len()]).unwrap();
 
         let delta_weights = input_mat.transpose().dot(&err_mat).unwrap();
-        let delta_biases = &err.sum() / err.len() as f64;
-
+        let delta_biases = err.sum() / err.len() as f64;
 
         self.weights = self.weights.clone() - (delta_weights * learning_rate);
         self.biases = self.biases.clone() - (delta_biases * learning_rate);
 
-  
         err.dot(&self.weights.transpose()).unwrap()
-        
     }
 }

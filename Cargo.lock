@@ -10,7 +10,6 @@ dependencies = [
  "bevy",
  "bigbang",
  "nalgebra",
- "ndarray",
  "ndarray-rand",
  "rand",
  "rand_distr",

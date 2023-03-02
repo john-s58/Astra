@@ -1,7 +1,6 @@
 pub mod activation;
 pub mod layer;
 use crate::astra_net::layer::Layer;
-
 use crate::tensor::Tensor;
 
 pub struct Net {
@@ -38,14 +37,15 @@ impl Net {
 
         let mut error = Tensor::from_vec(output.clone().to_vec(), vec![output.len()]);
 
-        error = Tensor::from_vec(error.to_vec()
-                                                .into_iter()
-                                                .zip(target.to_owned().to_vec()
-                                                .into_iter())
-                                                .map(|(x, y)| x-y)
-                                                .collect(),
-                                                vec![output.len()]);
-
+        error = Tensor::from_vec(
+            error
+                .to_vec()
+                .into_iter()
+                .zip(target.to_owned().to_vec().into_iter())
+                .map(|(x, y)| x - y)
+                .collect(),
+            vec![output.len()],
+        );
 
         for l in self.layers.iter_mut().rev() {
             error = l.back_propagation(error, 0.01);
