@@ -42,11 +42,93 @@ impl MutatingNet {
             mutation_rate: 0.15,
         }
     }
+
+    pub fn feed_forward(&self, input: &Tensor) -> Tensor {
+        let mut output = input.to_owned().reshape(vec![1, input.len()]).unwrap();
+
+        for (weight, bias) in self
+            .weights
+            .to_owned()
+            .into_iter()
+            .zip(self.biases.to_owned().into_iter())
+        {
+            output =
+                output.dot(&weight).unwrap() + bias.clone().reshape(vec![1, bias.len()]).unwrap();
+
+            output = self.activation.call(output)
+        }
+        output
+    }
+
+    pub fn crossover(mut self, right: &Self) -> Option<Self> {
+        if self.config != right.config.to_owned() {
+            return None;
+        }
+
+        let mut rng = rand::thread_rng();
+
+        self.weights = self
+            .weights
+            .into_iter()
+            .zip(right.weights.to_owned().into_iter())
+            .map(|(weights_self, weights_right)| {
+                Tensor::from_vec(
+                    weights_self
+                        .clone()
+                        .into_iter()
+                        .zip(weights_right.into_iter())
+                        .map(|(w_l, w_r)| {
+                            if rng.gen_range(0.0..1.0) < 0.5 {
+                                w_l
+                            } else {
+                                w_r
+                            }
+                        })
+                        .collect(),
+                    weights_self.shape,
+                )
+            })
+            .collect();
+        self.biases = self
+            .biases
+            .into_iter()
+            .zip(right.biases.to_owned().into_iter())
+            .map(|(weights_self, weights_right)| {
+                Tensor::from_vec(
+                    weights_self
+                        .clone()
+                        .into_iter()
+                        .zip(weights_right.into_iter())
+                        .map(|(w_l, w_r)| {
+                            if rng.gen_range(0.0..1.0) < 0.5 {
+                                w_l
+                            } else {
+                                w_r
+                            }
+                        })
+                        .collect(),
+                    weights_self.shape,
+                )
+            })
+            .collect();
+
+        Some(self)
+    }
 }
 
 fn main() {
     let config = vec![5, 3, 5];
-    let mt = MutatingNet::from_config(config);
+    let mt = MutatingNet::from_config(config.clone());
+    let mt2 = MutatingNet::from_config(config);
+
+    let inp = Tensor::from_element(1.0, vec![5]);
+    let ff = mt.feed_forward(&inp);
+
+    let mt_co = mt.crossover(&mt2).unwrap();
+    let ff_co = mt_co.feed_forward(&inp);
+
+    println!("{:#?}", ff);
+    println!("{:#?}", ff_co);
 
     test_astra_net_tensor();
 }

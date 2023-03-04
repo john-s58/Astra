@@ -8,6 +8,7 @@ pub trait Activation {
     fn print_self(&self);
 }
 
+#[derive(Clone)]
 pub struct LeakyReLU {
     alpha: f64,
 }
@@ -46,6 +47,7 @@ impl Activation for LeakyReLU {
     }
 }
 
+#[derive(Clone)]
 pub struct Softmax;
 
 impl Softmax {
