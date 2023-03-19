@@ -119,7 +119,26 @@ impl MutatingNet {
     }
 
     pub fn mutate(&mut self) {
-        //self.weights = self.weights.iter().map(f)
-        todo!()
+        let mut rng = rand::thread_rng();
+        self.weights = self
+            .weights
+            .clone()
+            .into_iter()
+            .map(|w| {
+                Tensor::from_vec(
+                    w.clone()
+                        .into_iter()
+                        .map(|x| {
+                            if rng.gen_range(0.0..1.0) < self.mutation_rate {
+                                x
+                            } else {
+                                rng.gen_range(0.0..1.0)
+                            }
+                        })
+                        .collect(),
+                    w.shape,
+                )
+            })
+            .collect();
     }
 }
