@@ -20,7 +20,7 @@ impl Tensor {
         assert!(!shape.contains(&0), "shape contains 0");
         assert_eq!(
             data.len(),
-            shape.clone().into_iter().reduce(|a, b| a * b).unwrap() as usize,
+            shape.iter().product(),
             "shape does not match data"
         );
 
@@ -34,42 +34,58 @@ impl Tensor {
     pub fn from_element(element: f64, shape: Vec<usize>) -> Self {
         assert!(!shape.contains(&0), "shape contains 0");
 
-        let data_size = shape.clone().into_iter().reduce(|x, y| x * y).unwrap() as usize;
-        Tensor {
+        let data_size = shape.iter().product();
+        Self {
             data: vec![element; data_size],
             shape: shape.clone(),
             ndim: shape.len(),
         }
     }
 
-    pub fn from_fn(shape: Vec<usize>, func: impl Fn() -> f64) -> Tensor {
+    pub fn from_fn(shape: Vec<usize>, func: impl Fn() -> f64) -> Self {
         Self {
-            data: (0..shape.clone().into_iter().reduce(|x, y| x * y).unwrap())
-                .map(|_| func())
-                .collect(),
+            data: (0..shape.iter().product()).map(|_| func()).collect(),
             shape: shape.clone(),
             ndim: shape.len(),
         }
     }
 
-    pub fn reshape(self, new_shape: Vec<usize>) -> Option<Tensor> {
+    pub fn reshape(self, new_shape: Vec<usize>) -> Option<Self> {
         assert!(!new_shape.contains(&0), "shape contains 0");
         if self.shape.clone().into_iter().reduce(|a, b| a * b).unwrap()
             != new_shape.clone().into_iter().reduce(|a, b| a * b).unwrap()
         {
             return None;
         }
-        Some(Tensor {
+        Some(Self {
             data: self.data,
             shape: new_shape.clone(),
             ndim: new_shape.len(),
         })
     }
 
-    pub fn identity(shape: Vec<usize>) -> Self {
-        // let mut res = Tensor::from_element(0.0, shape);
-        // res
-        todo!()
+    pub fn identity(shape: Vec<usize>) -> Option<Self> {
+        if shape.windows(2).all(|w| w[0] == w[1]) == false {
+            return None;
+        }
+        let ndim = shape.len();
+        let elem_size = shape[0];
+        let mut res = Tensor::from_element(0.0, shape);
+        for i in 0..elem_size {
+            *res.get_element_mut(&vec![i; ndim]).unwrap() = 1.0;
+        }
+        Some(res)
+    }
+
+    pub fn matrix(m: usize, n: usize, data: Vec<f64>) -> Option<Self> {
+        match m * n == data.len() {
+            false => None,
+            true => Some(Self {
+                data,
+                shape: vec![m, n],
+                ndim: 2,
+            }),
+        }
     }
 
     pub fn transpose(&self) -> Self {
@@ -132,7 +148,7 @@ impl Tensor {
 
     pub fn set_element(&mut self, indices: &[usize], value: f64) {}
 
-    pub fn map(self, fun: fn(f64) -> f64) -> Self {
+    pub fn map(self, fun: impl Fn(f64) -> f64) -> Self {
         Self {
             data: self.data.into_iter().map(fun).collect(),
             shape: self.shape,

@@ -1,5 +1,5 @@
 use crate::astra_net::activation::{LeakyReLU, Softmax};
-use crate::astra_net::layer::LayerDense;
+use crate::astra_net::dense::LayerDense;
 use crate::astra_net::Net;
 use crate::mutating::net::MutatingNet;
 
@@ -144,7 +144,9 @@ fn test_astra_mutating_mutatingnet() {
     let net = MutatingNet::from_config(vec![3, 5, 3]);
     let net2 = MutatingNet::from_config(vec![3, 5, 3]);
 
-    let net_combined = net.crossover(&net2).unwrap();
+    let mut net_combined = net.crossover(&net2).unwrap();
+
+    net_combined.mutate();
 
     let input = Tensor::from_element(1.3, vec![3]);
 

@@ -1,4 +1,5 @@
 pub mod activation;
+pub mod dense;
 pub mod layer;
 use crate::astra_net::layer::Layer;
 use crate::tensor::Tensor;

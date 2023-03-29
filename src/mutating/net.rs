@@ -1,5 +1,5 @@
 use crate::astra_net::activation::{Activation, LeakyReLU, Softmax};
-use crate::astra_net::layer::LayerDense;
+use crate::astra_net::dense::LayerDense;
 use crate::astra_net::Net;
 
 use crate::tensor::Tensor;
