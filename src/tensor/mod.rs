@@ -204,6 +204,34 @@ impl Tensor {
     pub fn to_vec(&self) -> Vec<f64> {
         self.data.to_owned()
     }
+
+    pub fn get_sub_matrix(&self, left_corner: &[usize], shape: &[usize]) -> Option<Self> {
+        // Check if the input is valid, i.e., the tensor is 2D, and the sub-matrix is within bounds
+        if self.ndim != 2 || left_corner.len() != 2 || shape.len() != 2 {
+            return None;
+        }
+    
+        let (left_corner_i, left_corner_j) = (left_corner[0], left_corner[1]);
+        let (shape_i, shape_j) = (shape[0], shape[1]);
+    
+        if left_corner_i + shape_i > self.shape[0] || left_corner_j + shape_j > self.shape[1] {
+            return None;
+        }
+    
+        // Create a new tensor to store the sub-matrix
+        let mut sub_matrix = Tensor::from_element(0.0, vec![shape_i, shape_j]);
+    
+        // Copy the data from the original tensor to the sub-matrix
+        for i in 0..shape_i {
+            for j in 0..shape_j {
+                let value = *self.get_element(&[left_corner_i + i, left_corner_j + j]).unwrap();
+                *sub_matrix.get_element_mut(&[i, j]).unwrap() = value;
+            }
+        }
+    
+        Some(sub_matrix)
+    }
+    
 }
 
 impl std::ops::Mul<Tensor> for f64 {
