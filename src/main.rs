@@ -11,8 +11,8 @@ mod tensor;
 use rand::Rng;
 
 fn main() {
-    let ten = Tensor::from_element(1.0, vec![3,3]);
-    let sten = ten.get_sub_matrix(&[1,1], &[2,2]);
+    let ten = Tensor::from_element(1.0, vec![3, 3]);
+    let sten = ten.get_sub_matrix(&[1, 1], &[2, 2]);
 
     println!("{:#?}", sten);
 

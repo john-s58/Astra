@@ -210,28 +210,82 @@ impl Tensor {
         if self.ndim != 2 || left_corner.len() != 2 || shape.len() != 2 {
             return None;
         }
-    
+
         let (left_corner_i, left_corner_j) = (left_corner[0], left_corner[1]);
         let (shape_i, shape_j) = (shape[0], shape[1]);
-    
+
         if left_corner_i + shape_i > self.shape[0] || left_corner_j + shape_j > self.shape[1] {
             return None;
         }
-    
+
         // Create a new tensor to store the sub-matrix
         let mut sub_matrix = Tensor::from_element(0.0, vec![shape_i, shape_j]);
-    
+
         // Copy the data from the original tensor to the sub-matrix
         for i in 0..shape_i {
             for j in 0..shape_j {
-                let value = *self.get_element(&[left_corner_i + i, left_corner_j + j]).unwrap();
+                let value = *self
+                    .get_element(&[left_corner_i + i, left_corner_j + j])
+                    .unwrap();
                 *sub_matrix.get_element_mut(&[i, j]).unwrap() = value;
             }
         }
-    
+
         Some(sub_matrix)
     }
-    
+
+    fn copy_recursive(
+        &self,
+        padded: &mut Tensor,
+        index: &mut Vec<usize>,
+        ranges: &[Vec<usize>],
+        dim: usize,
+    ) {
+        if dim < self.ndim - 1 {
+            for i in &ranges[dim] {
+                index[dim] = *i;
+                self.copy_recursive(padded, index, ranges, dim + 1);
+            }
+        } else {
+            for i in &ranges[dim] {
+                index[dim] = *i;
+                let value = *self.get_element(&index[dim - self.ndim + 1..]).unwrap();
+                *padded.get_element_mut(&index[..]).unwrap() = value;
+            }
+        }
+    }
+
+    pub fn pad(&self, padding: &[(usize, usize)]) -> Option<Self> {
+        // Check if the padding specification has the same length as the number of dimensions
+        if padding.len() != self.ndim {
+            return None;
+        }
+
+        // Calculate the new shape and initialize the padded tensor
+        let new_shape: Vec<usize> = self
+            .shape
+            .iter()
+            .zip(padding.iter())
+            .map(|(dim_size, (pad_before, pad_after))| dim_size + pad_before + pad_after)
+            .collect();
+
+        let mut padded = Tensor::from_element(0.0, new_shape.clone());
+
+        // Copy the data from the original tensor to the padded tensor
+        let index_ranges: Vec<Vec<usize>> = self
+            .shape
+            .iter()
+            .zip(padding.iter())
+            .map(|(dim_size, (pad_before, _pad_after))| {
+                (0..*dim_size).map(|i| i + pad_before).collect()
+            })
+            .collect();
+
+        let mut index: Vec<usize> = vec![0; self.ndim];
+        self.copy_recursive(&mut padded, &mut index, &index_ranges, 0);
+
+        Some(padded)
+    }
 }
 
 impl std::ops::Mul<Tensor> for f64 {
