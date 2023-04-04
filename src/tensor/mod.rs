@@ -286,6 +286,63 @@ impl Tensor {
 
         Some(padded)
     }
+
+    fn slice_recursive(
+        &self,
+        sub_tensor: &mut Tensor,
+        index: &mut Vec<usize>,
+        ranges: &[(usize, usize)],
+        dim: usize,
+    ) {
+        if dim < self.ndim - 1 {
+            for i in ranges[dim].0..ranges[dim].1 {
+                index[dim] = i;
+                self.slice_recursive(sub_tensor, index, ranges, dim + 1);
+            }
+        } else {
+            for i in ranges[dim].0..ranges[dim].1 {
+                index[dim] = i;
+                let value = *self.get_element(&index[..]).unwrap();
+                *sub_tensor
+                    .get_element_mut(
+                        &index
+                            .iter()
+                            .enumerate()
+                            .map(|(idx, &val)| val - ranges[idx].0)
+                            .collect::<Vec<usize>>()[..],
+                    )
+                    .unwrap() = value;
+            }
+        }
+    }
+
+    pub fn slice(&self, ranges: &[(usize, usize)]) -> Option<Self> {
+        // Check if the ranges specification has the same length as the number of dimensions
+        if ranges.len() != self.ndim {
+            return None;
+        }
+
+        // Check if the ranges are valid and calculate the new shape
+        let new_shape: Vec<usize> = self
+            .shape
+            .iter()
+            .zip(ranges.iter())
+            .map(|(dim_size, (start, end))| {
+                if start >= end || *end > *dim_size {
+                    None
+                } else {
+                    Some(end - start)
+                }
+            })
+            .collect::<Option<Vec<usize>>>()?;
+
+        let mut sub_tensor = Tensor::from_element(0.0, new_shape.clone());
+
+        let mut index: Vec<usize> = vec![0; self.ndim];
+        self.slice_recursive(&mut sub_tensor, &mut index, &ranges, 0);
+
+        Some(sub_tensor)
+    }
 }
 
 impl std::ops::Mul<Tensor> for f64 {

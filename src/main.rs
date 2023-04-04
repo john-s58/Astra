@@ -18,6 +18,9 @@ fn main() {
 
     test_astra_net_tensor();
     test_astra_mutating_mutatingnet();
+
+    let x: f64 = 1.23;
+    let y = x.floor() as i64;
 }
 
 // use bevy::prelude::*;
