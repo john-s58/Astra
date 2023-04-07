@@ -12,9 +12,12 @@ use rand::Rng;
 
 fn main() {
     let ten = Tensor::from_element(1.0, vec![3, 3]);
-    let sten = ten.get_sub_matrix(&[1, 1], &[2, 2]);
+    let sten = ten.get_sub_matrix(&[1, 1], &[2, 2]).unwrap();
 
-    println!("{:#?}", sten);
+    let slten = ten.slice(&[(0, 2), (0, 2)]).unwrap();
+
+    println!("sten : \n{:#?}", sten);
+    println!("slten : \n{:#?}", slten);
 
     test_astra_net_tensor();
     test_astra_mutating_mutatingnet();
