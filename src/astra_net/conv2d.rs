@@ -5,14 +5,14 @@ use crate::tensor::Tensor;
 use ndarray_rand::rand_distr::{Distribution, Normal};
 
 pub struct LayerConv2D {
-    filters: Vec<Tensor>,
-    kernal_shape: Vec<usize>,
-    stride: usize,
-    padding: usize,
-    input_shape: Vec<usize>,
-    activation: Box<dyn Activation>,
-    input: Option<Tensor>,
-    output: Option<Tensor>,
+    pub filters: Vec<Tensor>,
+    pub kernal_shape: Vec<usize>,
+    pub stride: usize,
+    pub padding: usize,
+    pub input_shape: Vec<usize>,
+    pub activation: Box<dyn Activation>,
+    pub input: Option<Tensor>,
+    pub output: Option<Tensor>,
 }
 
 impl LayerConv2D {
@@ -65,8 +65,7 @@ impl Layer for LayerConv2D {
         for filter in self.filters.clone().into_iter() {
             output.push(self.convolution(inputs, &filter));
         }
-
-        todo!()
+        Tensor::stack(&output, -1).unwrap()
     }
 
     fn back_propagation(&mut self, error: Tensor, learning_rate: f64) -> Tensor {

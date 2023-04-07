@@ -363,7 +363,7 @@ impl Tensor {
         Some(sub_matrix)
     }
 
-    fn copy_recursive(
+    fn copy_slice_recursive(
         &self,
         padded: &mut Tensor,
         index: &mut Vec<usize>,
@@ -373,7 +373,7 @@ impl Tensor {
         if dim < self.ndim - 1 {
             for i in &ranges[dim] {
                 index[dim] = *i;
-                self.copy_recursive(padded, index, ranges, dim + 1);
+                self.copy_slice_recursive(padded, index, ranges, dim + 1);
             }
         } else {
             for i in &ranges[dim] {
@@ -411,7 +411,7 @@ impl Tensor {
             .collect();
 
         let mut index: Vec<usize> = vec![0; self.ndim];
-        self.copy_recursive(&mut padded, &mut index, &index_ranges, 0);
+        self.copy_slice_recursive(&mut padded, &mut index, &index_ranges, 0);
 
         Some(padded)
     }
@@ -471,6 +471,58 @@ impl Tensor {
         self.slice_recursive(&mut sub_tensor, &mut index, &ranges, 0);
 
         Some(sub_tensor)
+    }
+
+    fn copy_data_recursive(&self, dest: &mut Tensor, index: &mut Vec<usize>, dim: usize) {
+        if dim == self.ndim {
+            if let Some(value) = self.get_element(index) {
+                dest.set_element(index, *value);
+            }
+        } else {
+            for i in 0..self.shape[dim] {
+                index[dim] = i;
+                self.copy_data_recursive(dest, index, dim + 1);
+            }
+        }
+    }
+
+    pub fn stack(tensors: &[Self], mut axis: isize) -> Option<Self> {
+        if tensors.is_empty() {
+            return None;
+        }
+
+        // Check if all tensors have the same shape
+        let first_shape = &tensors[0].shape;
+        for tensor in &tensors[1..] {
+            if &tensor.shape != first_shape {
+                return None;
+            }
+        }
+
+        // Handle negative axis values
+        let ndim = first_shape.len() as isize;
+        if axis < 0 {
+            axis += ndim + 1;
+        }
+        if axis < 0 || axis as usize > ndim as usize {
+            return None;
+        }
+
+        // Create a new shape with an additional dimension
+        let mut new_shape = first_shape.clone();
+        new_shape.insert(axis as usize, tensors.len());
+
+        // Create a new tensor with the new shape and fill it with zeros
+        let mut result = Tensor::zeros(&new_shape);
+
+        // Copy data from each input tensor to the new tensor
+        for (i, tensor) in tensors.iter().enumerate() {
+            let mut index = vec![0; new_shape.len()];
+            index[axis as usize] = i;
+            Self::copy_data_recursive(tensor, &mut result, &mut index, 0);
+        }
+
+        Some(result)
     }
 }
 

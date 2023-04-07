@@ -1,9 +1,10 @@
 use crate::astra_net::activation::{LeakyReLU, Softmax};
 use crate::astra_net::dense::LayerDense;
 use crate::astra_net::Net;
+use crate::astra_net::layer::Layer;
 use crate::mutating::net::MutatingNet;
-
 use crate::tensor::Tensor;
+use crate::astra_net::conv2d::LayerConv2D;
 
 mod astra_net;
 mod mutating;
@@ -11,6 +12,33 @@ mod tensor;
 use rand::Rng;
 
 fn main() {
+    let mut conv = LayerConv2D {
+        filters: vec![
+            Tensor::matrix(2, 2, vec![1.0,1.0,1.0,1.0]).unwrap(),
+            Tensor::matrix(2, 2, vec![2.0,1.0,2.0,1.0]).unwrap()
+        ],
+        kernal_shape: vec![2,2],
+        stride: 1,
+        padding: 0,
+        input_shape: vec![5,5],
+        activation: Box::new(LeakyReLU::new(0.3)),
+        input: None,
+        output: None
+    };
+
+    let conv_res = conv.feed_forward(&Tensor::from_element(5.0, vec![5,5]));
+
+    println!("conv_res {:#?}", conv_res);
+
+   
+    // test_tensors();
+    // test_astra_net_tensor();
+    // test_astra_mutating_mutatingnet();
+
+}
+
+
+fn test_tensors() {
     let ten = Tensor::from_element(1.0, vec![3, 3]);
     let sten = ten.get_sub_matrix(&[1, 1], &[2, 2]).unwrap();
 
@@ -18,81 +46,7 @@ fn main() {
 
     println!("sten : \n{:#?}", sten);
     println!("slten : \n{:#?}", slten);
-
-    test_astra_net_tensor();
-    test_astra_mutating_mutatingnet();
-
-    let x: f64 = 1.23;
-    let y = x.floor() as i64;
 }
-
-// use bevy::prelude::*;
-
-// fn main() {
-//     App::new()
-//     .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
-//     .add_plugins(DefaultPlugins.set(WindowPlugin {
-//         window: WindowDescriptor {
-//             title: "Rust Invaders!".to_string(),
-//             width: 598.0,
-//             height: 676.0,
-//             ..Default::default()
-//         },
-//         ..Default::default()
-//     }))
-//     .add_startup_system(setup)
-//     .run();
-// }
-
-// #[derive(Resource)]
-// pub struct WinSize {
-// 	pub w: f32,
-// 	pub h: f32,
-// }
-
-// #[derive(Resource)]
-// struct GameTextures {
-// 	player: Handle<Image>,
-// 	player_laser: Handle<Image>,
-// 	enemy: Handle<Image>,
-// 	enemy_laser: Handle<Image>,
-// 	explosion: Handle<TextureAtlas>,
-// }
-
-// #[derive(Resource)]
-// struct EnemyCount(u32);
-
-// fn setup(
-//     mut commands: Commands,
-//     asset_server: Res<AssetServer>,
-//     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-//     mut windows: ResMut<Windows>,
-// ) {
-//     // 2D Camera Bundle
-//     commands.spawn(Camera2dBundle::default());
-
-//     let window = windows.get_primary_mut().unwrap();
-//     let (win_w, win_h) = (window.width(), window.height());
-
-//     let win_size = WinSize {w: win_w, h: win_h};
-//     commands.insert_resource(win_size);
-
-//     let texture_handle = asset_server.load("explo_a_sheet.png");
-//     let texture_atlas =
-// 		TextureAtlas::from_grid(texture_handle, Vec2::new(64., 64.), 4, 4, None, None);
-//     let explosion = texture_atlases.add(texture_atlas);
-
-//     let game_textures = GameTextures {
-// 		player: asset_server.load("player_a_01.png"),
-// 		player_laser: asset_server.load("laser_a_01.png"),
-// 		enemy: asset_server.load("enemy_a_01.png"),
-// 		enemy_laser: asset_server.load("laser_b_01.png"),
-// 		explosion,
-// 	};
-// 	commands.insert_resource(game_textures);
-// 	commands.insert_resource(EnemyCount(0));
-
-// }
 
 fn test_astra_net_tensor() {
     let l1 = Box::new(LayerDense::new(6, 2, Box::new(LeakyReLU::new(0.1))));
