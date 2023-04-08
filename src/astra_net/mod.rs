@@ -37,7 +37,7 @@ impl Net {
     pub fn back_propagation(&mut self, input: &Tensor, target: &Tensor) {
         let output = self.feed_forward(input);
 
-        let mut error = Tensor::from_vec(output.clone().to_vec(), vec![output.len()]);
+        let mut error = Tensor::from_vec(output.clone().to_vec(), vec![output.len()]).unwrap_or_default();
 
         error = Tensor::from_vec(
             error
@@ -47,7 +47,7 @@ impl Net {
                 .map(|(x, y)| x - y)
                 .collect(),
             vec![output.len()],
-        );
+        ).unwrap_or_default();
 
         for l in self.layers.iter_mut().rev() {
             error = l.back_propagation(error, 0.01);

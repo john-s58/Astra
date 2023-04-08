@@ -28,7 +28,7 @@ impl Activation for LeakyReLU {
                 .map(|n| if n > 0.0 { n } else { self.alpha * n })
                 .collect(),
             x.shape,
-        )
+        ).unwrap_or_default()
     }
 
     fn derive(&self, x: Tensor) -> Tensor {
@@ -39,7 +39,7 @@ impl Activation for LeakyReLU {
                 .map(|n| if n > 0.0 { 1.0 } else { self.alpha })
                 .collect(),
             x.shape,
-        )
+        ).unwrap_or_default()
     }
 
     fn print_self(&self) {
@@ -61,7 +61,7 @@ impl Activation for Softmax {
         let input_exp = Tensor::from_vec(
             x.clone().to_vec().into_iter().map(|n| n.exp()).collect(),
             x.shape,
-        );
+        ).unwrap_or_default();
 
         input_exp.clone() / input_exp.sum()
     }
@@ -75,7 +75,7 @@ impl Activation for Softmax {
                 .map(|n| n * (1.0 - n))
                 .collect(),
             sm.shape,
-        )
+        ).unwrap_or_default()
     }
 
     fn print_self(&self) {

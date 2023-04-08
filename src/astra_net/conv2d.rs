@@ -34,26 +34,26 @@ impl LayerConv2D {
 
         let mut padded_image = input.to_owned();
 
-        match self.padding {
-            0 => {}
-            _ => {
-                padded_image = padded_image
-                    .pad(&[(self.padding, self.padding), (self.padding, self.padding)])
-                    .unwrap()
-            }
-        }
+        // match self.padding {
+        //     0 => {}
+        //     _ => {
+        //         padded_image = padded_image
+        //             .pad(&[(self.padding, self.padding), (self.padding, self.padding)])
+        //             .unwrap()
+        //     }
+        // }
 
-        for y in 0..output_height {
-            for x in 0..output_width {
-                let (y_start, y_end) = (y * self.stride, y * self.stride + kernel_height);
-                let (x_start, x_end) = (x * self.stride, x * self.stride + kernel_width);
-                *(output.get_element_mut(&[y, x]).unwrap()) = (padded_image
-                    .slice(&[(y_start, y_end), (x_start, x_end)])
-                    .unwrap()
-                    * kernel.to_owned())
-                .sum();
-            }
-        }
+        // for y in 0..output_height {
+        //     for x in 0..output_width {
+        //         let (y_start, y_end) = (y * self.stride, y * self.stride + kernel_height);
+        //         let (x_start, x_end) = (x * self.stride, x * self.stride + kernel_width);
+        //         *(output.get_element_mut(&[y, x]).unwrap()) = (padded_image
+        //             .slice(&[(y_start, y_end), (x_start, x_end)])
+        //             .unwrap()
+        //             * kernel.to_owned())
+        //         .sum();
+        //     }
+        // }
         output
     }
 }
@@ -65,7 +65,8 @@ impl Layer for LayerConv2D {
         for filter in self.filters.clone().into_iter() {
             output.push(self.convolution(inputs, &filter));
         }
-        Tensor::stack(&output, -1).unwrap()
+        Tensor::default()
+       // Tensor::stack(&output, -1).unwrap()
     }
 
     fn back_propagation(&mut self, error: Tensor, learning_rate: f64) -> Tensor {

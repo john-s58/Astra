@@ -1,3 +1,5 @@
+pub mod tensor_error;
+
 #[derive(Clone, Debug)]
 pub struct Tensor {
     pub data: Vec<f64>,
@@ -7,6 +9,8 @@ pub struct Tensor {
 
 use std::f64;
 use std::f64::EPSILON;
+
+use self::tensor_error::TensorError;
 
 // row first [3, 4] -> 3 rows 4 columns
 // [2, 3, 4] -> 2 instances of 3 rows and 4 columns
@@ -19,19 +23,19 @@ impl Tensor {
         }
     }
 
-    pub fn from_vec(data: Vec<f64>, shape: Vec<usize>) -> Self {
-        assert!(!shape.contains(&0), "shape contains 0");
-        assert_eq!(
-            data.len(),
-            shape.iter().product(),
-            "shape does not match data"
-        );
+    pub fn from_vec(data: Vec<f64>, shape: Vec<usize>) -> Result<Self, TensorError> {
+        if shape.contains(&0) {
+            return Err(TensorError::ZeroInShape);
+        }
+        if data.len() != shape.iter().product() {
+            return Err(TensorError::ShapeDataMismatch);
+        }
 
-        Self {
+        Ok(Self {
             data,
             shape: shape.clone(),
             ndim: shape.len(),
-        }
+        })
     }
 
     pub fn from_element(element: f64, shape: Vec<usize>) -> Self {
@@ -53,23 +57,31 @@ impl Tensor {
         }
     }
 
-    pub fn reshape(self, new_shape: Vec<usize>) -> Option<Self> {
-        assert!(!new_shape.contains(&0), "shape contains 0");
-        if self.shape.clone().into_iter().reduce(|a, b| a * b).unwrap()
-            != new_shape.clone().into_iter().reduce(|a, b| a * b).unwrap()
-        {
-            return None;
+    pub fn reshape(self, new_shape: &[usize]) -> Result<Self, TensorError> {
+        if new_shape.contains(&0) {
+            return Err(TensorError::ZeroInShape);
         }
-        Some(Self {
+
+        if self.shape.clone().into_iter().reduce(|a, b| a * b).unwrap()
+            != new_shape
+                .to_owned()
+                .into_iter()
+                .reduce(|a, b| a * b)
+                .unwrap()
+        {
+            return Err(TensorError::ShapeDataMismatch);
+        }
+        let ndim = new_shape.len();
+        Ok(Self {
             data: self.data,
-            shape: new_shape.clone(),
-            ndim: new_shape.len(),
+            shape: Vec::from_iter(new_shape.to_owned().into_iter()),
+            ndim,
         })
     }
 
-    pub fn identity(shape: Vec<usize>) -> Option<Self> {
+    pub fn identity(shape: Vec<usize>) -> Result<Self, TensorError> {
         if shape.windows(2).all(|w| w[0] == w[1]) == false {
-            return None;
+            return Err(TensorError::NonSquareMatrix);
         }
         let ndim = shape.len();
         let elem_size = shape[0];
@@ -77,13 +89,13 @@ impl Tensor {
         for i in 0..elem_size {
             *res.get_element_mut(&vec![i; ndim]).unwrap() = 1.0;
         }
-        Some(res)
+        Ok(res)
     }
 
-    pub fn matrix(m: usize, n: usize, data: Vec<f64>) -> Option<Self> {
+    pub fn matrix(m: usize, n: usize, data: Vec<f64>) -> Result<Self, TensorError> {
         match m * n == data.len() {
-            false => None,
-            true => Some(Self {
+            false => Err(TensorError::ShapeDataMismatch),
+            true => Ok(Self {
                 data,
                 shape: vec![m, n],
                 ndim: 2,
@@ -102,12 +114,10 @@ impl Tensor {
         }
     }
 
-    pub fn transpose(&self) -> Self {
+    pub fn transpose(&self) -> Result<Self, TensorError> {
         match self.ndim {
-            0 => {
-                panic!("Empty Tenosr Tranpose");
-            }
-            1 => self.to_owned(),
+            0 => Err(TensorError::EmptyTensor),
+            1 => Ok(self.to_owned().reshape(&[1, self.shape[0]])?),
             2 => {
                 let mut transposed = self.to_owned();
                 transposed.shape = transposed.shape.into_iter().rev().collect();
@@ -117,25 +127,28 @@ impl Tensor {
                             self.get_element(&[j, i]).unwrap().to_owned();
                     }
                 }
-                transposed
+                Ok(transposed)
             }
-            _ => self.to_owned(),
+            _ => Err(TensorError::UnsupportedDimension),
         }
     }
 
-    pub fn get_index(&self, indices: &[usize]) -> usize {
+    pub fn get_index(&self, indices: &[usize]) -> Result<usize, TensorError> {
         let mut index = 0;
         let mut stride = 1;
         for i in 0..self.shape.len() {
             index += indices[i] * stride;
             stride *= self.shape[i];
         }
-        index
+        if index > self.len() - 1 {
+            return Err(TensorError::OutOfBounds);
+        }
+        Ok(index)
     }
 
-    pub fn get_indices(&self, index: usize) -> Option<Vec<usize>> {
+    pub fn get_indices(&self, index: usize) -> Result<Vec<usize>, TensorError> {
         if index >= self.data.len() {
-            return None;
+            return Err(TensorError::OutOfBounds);
         }
 
         let mut indices = vec![0; self.shape.len()];
@@ -147,20 +160,23 @@ impl Tensor {
             remainder /= stride;
         }
 
-        Some(indices)
+        Ok(indices)
     }
 
-    pub fn get_element(&self, indices: &[usize]) -> Option<&f64> {
-        let index: usize = self.get_index(indices);
-        self.data.get(index)
+    pub fn get_element(&self, indices: &[usize]) -> Result<&f64, TensorError> {
+        let index = self.get_index(indices)?;
+        Ok(&self.data.get(index).unwrap())
     }
 
-    pub fn get_element_mut(&mut self, indices: &[usize]) -> Option<&mut f64> {
-        let index: usize = self.get_index(indices);
-        self.data.get_mut(index)
+    pub fn get_element_mut(&mut self, indices: &[usize]) -> Result<&mut f64, TensorError> {
+        let index = self.get_index(indices)?;
+        Ok(self.data.get_mut(index).unwrap())
     }
 
-    pub fn set_element(&mut self, indices: &[usize], value: f64) {}
+    pub fn set_element(&mut self, indices: &[usize], value: f64) -> Result<(), TensorError> {
+        *self.get_element_mut(indices)? = value;
+        Ok(())
+    }
 
     pub fn map(self, fun: impl Fn(f64) -> f64) -> Self {
         Self {
@@ -174,15 +190,15 @@ impl Tensor {
         if self.data.len() == 1 {
             return self.data[0];
         }
-        self.data.clone().into_iter().reduce(|x, y| x + y).unwrap()
+        self.data.clone().into_iter().sum()
     }
 
-    pub fn dot(&self, other: &Self) -> Option<Self> {
+    pub fn dot(&self, other: &Self) -> Result<Self, TensorError> {
         if self.shape.len() != 2 || other.shape.len() != 2 {
-            return None;
+            return Err(TensorError::UnsupportedDimension);
         }
         if self.shape[1] != other.shape[0] {
-            return None;
+            return Err(TensorError::DimensionsMismatchForDotOperation);
         }
         let mut result = Tensor::from_element(0.0, vec![self.shape[0], other.shape[1]]);
 
@@ -190,18 +206,21 @@ impl Tensor {
             for j in 0..other.shape[1] {
                 let mut val = 0.0;
                 for k in 0..self.shape[1] {
-                    val += self.get_element(&[i, k]).unwrap() * other.get_element(&[k, j]).unwrap();
+                    val += self.get_element(&[i, k])? * other.get_element(&[k, j])?;
                 }
-                *result.get_element_mut(&[i, j]).unwrap() = val;
+                *result.get_element_mut(&[i, j])? = val;
             }
         }
 
-        Some(result)
+        Ok(result)
     }
 
-    pub fn lu_decomposition(&self) -> Option<(Self, Self)> {
-        if self.ndim != 2 || self.shape[0] != self.shape[1] {
-            return None;
+    pub fn lu_decomposition(&self) -> Result<(Self, Self), TensorError> {
+        if self.ndim != 2 {
+            return Err(TensorError::UnsupportedDimension);
+        }
+        if self.shape[0] != self.shape[1] {
+            return Err(TensorError::NonSquareMatrix);
         }
 
         let n = self.shape[0];
@@ -229,7 +248,9 @@ impl Tensor {
                     }
 
                     if u.get_element(&[i, i]).unwrap().abs() < EPSILON {
-                        return None;
+                        return Err(TensorError::CustomError(
+                            format!("LU Decomposition failed due element at indices [{:?}, {:?}] >= EPSILON", i, i)
+                            .to_string()));
                     }
 
                     let l_value = (*self.get_element(&[j, i]).unwrap() - sum)
@@ -238,10 +259,10 @@ impl Tensor {
                 }
             }
         }
-        Some((l, u))
+        Ok((l, u))
     }
 
-    pub fn norm(&self) -> Result<f64, &'static str> {
+    pub fn norm(&self) -> Result<f64, TensorError> {
         match self.ndim {
             1 => {
                 let mut sum = 0.0;
@@ -262,13 +283,13 @@ impl Tensor {
                 }
                 Ok(sum.sqrt())
             }
-            _ => Err("Norm is only implemented for 1- and 2-dimensional tensors."),
+            _ => Err(TensorError::UnsupportedDimension),
         }
     }
 
-    pub fn qr(&self) -> Result<(Tensor, Tensor), &'static str> {
+    pub fn qr(&self) -> Result<(Tensor, Tensor), TensorError> {
         if self.ndim != 2 {
-            return Err("QR decomposition is only available for 2-dimensional tensors.");
+            return Err(TensorError::UnsupportedDimension);
         }
 
         let rows = self.shape[0];
@@ -314,18 +335,6 @@ impl Tensor {
         }
     }
 
-    pub fn inverse(&self) -> Self {
-        todo!()
-    }
-
-    pub fn diag(&self) -> Vec<f64> {
-        todo!()
-    }
-
-    pub fn push_value(&mut self, val: f64) {
-        todo!()
-    }
-
     pub fn len(&self) -> usize {
         self.data.len()
     }
@@ -334,17 +343,25 @@ impl Tensor {
         self.data.to_owned()
     }
 
-    pub fn get_sub_matrix(&self, left_corner: &[usize], shape: &[usize]) -> Option<Self> {
-        // Check if the input is valid, i.e., the tensor is 2D, and the sub-matrix is within bounds
-        if self.ndim != 2 || left_corner.len() != 2 || shape.len() != 2 {
-            return None;
+    pub fn get_sub_matrix(
+        &self,
+        left_corner: &[usize],
+        shape: &[usize],
+    ) -> Result<Self, TensorError> {
+        if self.ndim != 2 {
+            return Err(TensorError::UnsupportedDimension);
+        }
+        if left_corner.len() != 2 || shape.len() != 2 {
+            return Err(TensorError::UnsupportedDimension);
         }
 
         let (left_corner_i, left_corner_j) = (left_corner[0], left_corner[1]);
         let (shape_i, shape_j) = (shape[0], shape[1]);
 
         if left_corner_i + shape_i > self.shape[0] || left_corner_j + shape_j > self.shape[1] {
-            return None;
+            return Err(TensorError::CustomError(
+                "sub matrix dimensions larger than original matrix".to_string(),
+            ));
         }
 
         // Create a new tensor to store the sub-matrix
@@ -360,169 +377,137 @@ impl Tensor {
             }
         }
 
-        Some(sub_matrix)
+        Ok(sub_matrix)
     }
 
-    fn copy_slice_recursive(
-        &self,
-        padded: &mut Tensor,
-        index: &mut Vec<usize>,
-        ranges: &[Vec<usize>],
-        dim: usize,
-    ) {
-        if dim < self.ndim - 1 {
-            for i in &ranges[dim] {
-                index[dim] = *i;
-                self.copy_slice_recursive(padded, index, ranges, dim + 1);
+    pub fn set_slice(
+        &mut self,
+        ranges: &[(usize, usize)],
+        source: &Self,
+    ) -> Result<(), TensorError> {
+        if self.ndim != source.ndim || self.ndim != ranges.len() {
+            return Err(TensorError::CustomError(
+                "dimensions error with self, source and ranges".to_string(),
+            ));
+        }
+        for dim in 0..self.ndim {
+            if (ranges[dim].1 - ranges[dim].0) + 1 != source.shape[dim] {
+                return Err(TensorError::CustomError(
+                    "slice shape different from source shape".to_string(),
+                ));
             }
-        } else {
-            for i in &ranges[dim] {
-                index[dim] = *i;
-                let value = *self.get_element(&index[dim - self.ndim + 1..]).unwrap();
-                *padded.get_element_mut(&index[..]).unwrap() = value;
+        }
+        let mut index: Vec<usize> = ranges.iter().map(|r| r.0).collect();
+        let mut src_index = vec![0; self.ndim];
+
+        loop {
+            // Copy element from the source tensor to the current tensor
+            let value = *source.get_element(&src_index).unwrap();
+            *self.get_element_mut(&index).unwrap() = value;
+
+            // Increment the indices for the source tensor and current tensor
+            let mut dim = self.ndim - 1;
+            while dim < self.ndim {
+                index[dim] += 1;
+                src_index[dim] += 1;
+
+                // Check if the index is within the specified range
+                if index[dim] <= ranges[dim].1 {
+                    break;
+                } else {
+                    // Reset the index for the current dimension
+                    index[dim] = ranges[dim].0;
+                    src_index[dim] = 0;
+
+                    // Move to the previous dimension
+                    if dim > 0 {
+                        dim -= 1;
+                    } else {
+                        return Ok(()); // All elements processed, exit the loop
+                    }
+                }
             }
         }
     }
 
-    pub fn pad(&self, padding: &[(usize, usize)]) -> Option<Self> {
-        // Check if the padding specification has the same length as the number of dimensions
-        if padding.len() != self.ndim {
-            return None;
+    pub fn slice(&self, ranges: &[(usize, usize)]) -> Result<Self, TensorError> {
+        if self.ndim != ranges.len() {
+            return Err(TensorError::ShapeMismatchBetweenTensors);
         }
 
-        // Calculate the new shape and initialize the padded tensor
+        let new_shape: Vec<usize> = ranges.iter().map(|r| r.1 - r.0 + 1).collect();
+        let new_size = new_shape.iter().product();
+
+        let mut new_data = Vec::with_capacity(new_size);
+        let mut index: Vec<usize> = ranges.iter().map(|r| r.0).collect();
+
+        loop {
+            // Copy element from the current tensor to the new tensor
+            let value = *self.get_element(&index).unwrap();
+            new_data.push(value);
+
+            // Increment the indices for the current tensor
+            let mut dim = self.ndim - 1;
+            while dim < self.ndim {
+                index[dim] += 1;
+
+                // Check if the index is within the specified range
+                if index[dim] <= ranges[dim].1 {
+                    break;
+                } else {
+                    // Reset the index for the current dimension
+                    index[dim] = ranges[dim].0;
+
+                    // Move to the previous dimension
+                    if dim > 0 {
+                        dim -= 1;
+                    } else {
+                        return Ok(Tensor::from_vec(new_data, new_shape)?); // All elements processed, exit the loop
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn pad(&self, padding: &[(usize, usize)]) -> Result<Self, TensorError> {
+        if self.ndim != padding.len() {
+            return Err(TensorError::ShapeMismatchBetweenTensors);
+        }
         let new_shape: Vec<usize> = self
             .shape
             .iter()
             .zip(padding.iter())
             .map(|(dim_size, (pad_before, pad_after))| dim_size + pad_before + pad_after)
             .collect();
+        let mut padded = Tensor::from_element(0.0, new_shape);
 
-        let mut padded = Tensor::from_element(0.0, new_shape.clone());
-
-        // Copy the data from the original tensor to the padded tensor
-        let index_ranges: Vec<Vec<usize>> = self
+        let index_ranges: Vec<(usize, usize)> = padded
             .shape
-            .iter()
-            .zip(padding.iter())
-            .map(|(dim_size, (pad_before, _pad_after))| {
-                (0..*dim_size).map(|i| i + pad_before).collect()
-            })
+            .to_owned()
+            .into_iter()
+            .zip(padding.into_iter())
+            .map(|(dim_size, (pad_before, pad_after))| (*pad_before, dim_size - pad_after - 1))
             .collect();
 
-        let mut index: Vec<usize> = vec![0; self.ndim];
-        self.copy_slice_recursive(&mut padded, &mut index, &index_ranges, 0);
+        padded.set_slice(&index_ranges.as_slice(), &self)?;
 
-        Some(padded)
+        Ok(padded)
     }
 
-    fn slice_recursive(
-        &self,
-        sub_tensor: &mut Tensor,
-        index: &mut Vec<usize>,
-        ranges: &[(usize, usize)],
-        dim: usize,
-    ) {
-        if dim < self.ndim - 1 {
-            for i in ranges[dim].0..ranges[dim].1 {
-                index[dim] = i;
-                self.slice_recursive(sub_tensor, index, ranges, dim + 1);
+    pub fn print_matrix(&self) -> Result<(), TensorError> {
+        if self.ndim != 2 {
+            return Err(TensorError::UnsupportedDimension);
+        }
+
+        let mut index = 0;
+        for row in 0..self.shape[0] {
+            for col in 0..self.shape[1] {
+                print!("{:5.1} ", self.data[index]);
+                index += 1;
             }
-        } else {
-            for i in ranges[dim].0..ranges[dim].1 {
-                index[dim] = i;
-                let value = *self.get_element(&index[..]).unwrap();
-                *sub_tensor
-                    .get_element_mut(
-                        &index
-                            .iter()
-                            .enumerate()
-                            .map(|(idx, &val)| val - ranges[idx].0)
-                            .collect::<Vec<usize>>()[..],
-                    )
-                    .unwrap() = value;
-            }
+            println!();
         }
-    }
-
-    pub fn slice(&self, ranges: &[(usize, usize)]) -> Option<Self> {
-        // Check if the ranges specification has the same length as the number of dimensions
-        if ranges.len() != self.ndim {
-            return None;
-        }
-
-        // Check if the ranges are valid and calculate the new shape
-        let new_shape: Vec<usize> = self
-            .shape
-            .iter()
-            .zip(ranges.iter())
-            .map(|(dim_size, (start, end))| {
-                if start >= end || *end > *dim_size {
-                    None
-                } else {
-                    Some(end - start)
-                }
-            })
-            .collect::<Option<Vec<usize>>>()?;
-
-        let mut sub_tensor = Tensor::from_element(0.0, new_shape.clone());
-
-        let mut index: Vec<usize> = vec![0; self.ndim];
-        self.slice_recursive(&mut sub_tensor, &mut index, &ranges, 0);
-
-        Some(sub_tensor)
-    }
-
-    fn copy_data_recursive(&self, dest: &mut Tensor, index: &mut Vec<usize>, dim: usize) {
-        if dim == self.ndim {
-            if let Some(value) = self.get_element(index) {
-                dest.set_element(index, *value);
-            }
-        } else {
-            for i in 0..self.shape[dim] {
-                index[dim] = i;
-                self.copy_data_recursive(dest, index, dim + 1);
-            }
-        }
-    }
-
-    pub fn stack(tensors: &[Self], mut axis: isize) -> Option<Self> {
-        if tensors.is_empty() {
-            return None;
-        }
-
-        // Check if all tensors have the same shape
-        let first_shape = &tensors[0].shape;
-        for tensor in &tensors[1..] {
-            if &tensor.shape != first_shape {
-                return None;
-            }
-        }
-
-        // Handle negative axis values
-        let ndim = first_shape.len() as isize;
-        if axis < 0 {
-            axis += ndim + 1;
-        }
-        if axis < 0 || axis as usize > ndim as usize {
-            return None;
-        }
-
-        // Create a new shape with an additional dimension
-        let mut new_shape = first_shape.clone();
-        new_shape.insert(axis as usize, tensors.len());
-
-        // Create a new tensor with the new shape and fill it with zeros
-        let mut result = Tensor::zeros(&new_shape);
-
-        // Copy data from each input tensor to the new tensor
-        for (i, tensor) in tensors.iter().enumerate() {
-            let mut index = vec![0; new_shape.len()];
-            index[axis as usize] = i;
-            Self::copy_data_recursive(tensor, &mut result, &mut index, 0);
-        }
-
-        Some(result)
+        Ok(())
     }
 }
 
@@ -722,3 +707,61 @@ impl Default for Tensor {
         Self::new()
     }
 }
+
+// fn copy_data_recursive(
+//     &self,
+//     dest: &mut Tensor,
+//     index: &mut Vec<usize>,
+//     dim: usize,
+// ) -> Result<(), TensorError> {
+//     if dim == self.ndim {
+//         if let Some(value) = self.get_element(index)? {
+//             dest.set_element(index, *value);
+//         }
+//     } else {
+//         for i in 0..self.shape[dim] {
+//             index[dim] = i;
+//             self.copy_data_recursive(dest, index, dim + 1);
+//         }
+//     }
+//     Ok(())
+// }
+
+// pub fn stack(tensors: &[Self], mut axis: isize) -> Option<Self> {
+//     if tensors.is_empty() {
+//         return None;
+//     }
+
+//     // Check if all tensors have the same shape
+//     let first_shape = &tensors[0].shape;
+//     for tensor in &tensors[1..] {
+//         if &tensor.shape != first_shape {
+//             return None;
+//         }
+//     }
+
+//     // Handle negative axis values
+//     let ndim = first_shape.len() as isize;
+//     if axis < 0 {
+//         axis += ndim + 1;
+//     }
+//     if axis < 0 || axis as usize > ndim as usize {
+//         return None;
+//     }
+
+//     // Create a new shape with an additional dimension
+//     let mut new_shape = first_shape.clone();
+//     new_shape.insert(axis as usize, tensors.len());
+
+//     // Create a new tensor with the new shape and fill it with zeros
+//     let mut result = Tensor::zeros(&new_shape);
+
+//     // Copy data from each input tensor to the new tensor
+//     for (i, tensor) in tensors.iter().enumerate() {
+//         let mut index = vec![0; new_shape.len()];
+//         index[axis as usize] = i;
+//         Self::copy_data_recursive(tensor, &mut result, &mut index, 0);
+//     }
+
+//     Some(result)
+// }
