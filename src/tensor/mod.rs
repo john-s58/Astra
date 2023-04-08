@@ -304,11 +304,11 @@ impl Tensor {
                 let q_i = q.get_column(i);
                 let r_ik = q_i.dot(&u_k).unwrap().data[0];
 
-                r.set_element(&[i, k], r_ik);
+                r.set_element(&[i, k], r_ik)?;
                 u_k = u_k / q_i * r_ik;
             }
             let norm = u_k.norm()?;
-            r.set_element(&[k, k], norm);
+            r.set_element(&[k, k], norm)?;
             q.set_column(k, &(u_k / norm));
         }
 
@@ -500,8 +500,8 @@ impl Tensor {
         }
 
         let mut index = 0;
-        for row in 0..self.shape[0] {
-            for col in 0..self.shape[1] {
+        for _row in 0..self.shape[0] {
+            for _col in 0..self.shape[1] {
                 print!("{:5.1} ", self.data[index]);
                 index += 1;
             }
