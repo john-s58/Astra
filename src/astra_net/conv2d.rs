@@ -1,8 +1,11 @@
 use crate::astra_net::activation::Activation;
 use crate::astra_net::layer::Layer;
+use crate::astra_net::net_error::NetError;
 use crate::tensor::Tensor;
 
 use ndarray_rand::rand_distr::{Distribution, Normal};
+
+use super::Net;
 
 pub struct LayerConv2D {
     pub filters: Vec<Tensor>,
@@ -20,7 +23,7 @@ impl LayerConv2D {
         todo!()
     }
 
-    fn convolution(&self, input: &Tensor, kernel: &Tensor) -> Tensor {
+    fn convolution(&self, input: &Tensor, kernel: &Tensor) -> Result<Tensor, NetError> {
         assert!(input.ndim == 2, "input should be a matrix");
         assert!(kernel.ndim == 2, "kernel should be a matrix");
 
@@ -54,22 +57,21 @@ impl LayerConv2D {
         //         .sum();
         //     }
         // }
-        output
+        Ok(output)
     }
 }
 
 impl Layer for LayerConv2D {
-    fn feed_forward(&mut self, inputs: &Tensor) -> Tensor {
+    fn feed_forward(&mut self, inputs: &Tensor) -> Result<Tensor, NetError> {
         let mut output: Vec<Tensor> = Vec::new();
 
         for filter in self.filters.clone().into_iter() {
-            output.push(self.convolution(inputs, &filter));
+            output.push(self.convolution(inputs, &filter)?);
         }
-        Tensor::default()
-       // Tensor::stack(&output, -1).unwrap()
+        Tensor::stack(&output).map_err(NetError::TensorBasedError)
     }
 
-    fn back_propagation(&mut self, error: Tensor, learning_rate: f64) -> Tensor {
+    fn back_propagation(&mut self, error: Tensor, learning_rate: f64) -> Result<Tensor, NetError> {
         todo!()
     }
 }

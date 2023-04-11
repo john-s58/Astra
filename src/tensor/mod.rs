@@ -7,6 +7,7 @@ pub struct Tensor {
     pub ndim: usize,
 }
 
+use std::env::temp_dir;
 use std::f64;
 use std::f64::EPSILON;
 
@@ -380,43 +381,116 @@ impl Tensor {
         Ok(sub_matrix)
     }
 
+    // pub fn set_slice(
+    //     &mut self,
+    //     ranges: &[(usize, usize)],
+    //     source: &Self,
+    // ) -> Result<(), TensorError> {
+    //     if self.ndim != source.ndim || self.ndim != ranges.len() {
+    //         return Err(TensorError::CustomError(
+    //             "dimensions error with self, source and ranges".to_string(),
+    //         ));
+    //     }
+    //     for dim in 0..self.ndim {
+    //         if (ranges[dim].1 - ranges[dim].0) + 1 != source.shape[dim] {
+    //             return Err(TensorError::CustomError(
+    //                 "slice shape different from source shape".to_string(),
+    //             ));
+    //         }
+    //     }
+    //     let mut index: Vec<usize> = ranges.iter().map(|r| r.0).collect();
+    //     let mut src_index = vec![0; self.ndim];
+
+    //     loop {
+    //         // Copy element from the source tensor to the current tensor
+    //         let value = *source.get_element(&src_index).unwrap();
+    //         *self.get_element_mut(&index).unwrap() = value;
+
+    //         // Increment the indices for the source tensor and current tensor
+    //         let mut dim = self.ndim - 1;
+    //         while dim < self.ndim {
+    //             index[dim] += 1;
+    //             src_index[dim] += 1;
+
+    //             // Check if the index is within the specified range
+    //             if index[dim] <= ranges[dim].1 {
+    //                 break;
+    //             } else {
+    //                 // Reset the index for the current dimension
+    //                 index[dim] = ranges[dim].0;
+    //                 src_index[dim] = 0;
+
+    //                 // Move to the previous dimension
+    //                 if dim > 0 {
+    //                     dim -= 1;
+    //                 } else {
+    //                     return Ok(()); // All elements processed, exit the loop
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
     pub fn set_slice(
         &mut self,
         ranges: &[(usize, usize)],
         source: &Self,
     ) -> Result<(), TensorError> {
-        if self.ndim != source.ndim || self.ndim != ranges.len() {
+        if self.ndim < source.ndim || self.ndim != ranges.len() {
             return Err(TensorError::CustomError(
                 "dimensions error with self, source and ranges".to_string(),
             ));
         }
-        for dim in 0..self.ndim {
-            if (ranges[dim].1 - ranges[dim].0) + 1 != source.shape[dim] {
+
+        let target_dims: Vec<usize> = ranges
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| r.1 > r.0)
+            .map(|(i, _)| i)
+            .collect();
+
+        if target_dims.len() != source.ndim {
+            return Err(TensorError::CustomError(
+                "source dimensions mismatch with non-single-value ranges".to_string(),
+            ));
+        }
+
+        for (dim, &target_dim) in target_dims.iter().enumerate() {
+            if (ranges[target_dim].1 - ranges[target_dim].0) + 1 != source.shape[dim] {
                 return Err(TensorError::CustomError(
                     "slice shape different from source shape".to_string(),
                 ));
             }
         }
+
         let mut index: Vec<usize> = ranges.iter().map(|r| r.0).collect();
-        let mut src_index = vec![0; self.ndim];
+        let mut src_index = vec![0; source.ndim];
 
         loop {
             // Copy element from the source tensor to the current tensor
             let value = *source.get_element(&src_index).unwrap();
-            *self.get_element_mut(&index).unwrap() = value;
+            let target_index: Vec<usize> = index
+                .iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    if target_dims.contains(&i) {
+                        *v + src_index[target_dims.iter().position(|&td| td == i).unwrap()]
+                    } else {
+                        *v
+                    }
+                })
+                .collect();
+            *self.get_element_mut(&target_index).unwrap() = value;
 
-            // Increment the indices for the source tensor and current tensor
-            let mut dim = self.ndim - 1;
-            while dim < self.ndim {
-                index[dim] += 1;
+            // Increment the indices for the source tensor
+            let mut dim = source.ndim - 1;
+            while dim < source.ndim {
                 src_index[dim] += 1;
 
                 // Check if the index is within the specified range
-                if index[dim] <= ranges[dim].1 {
+                if src_index[dim] < source.shape[dim] {
                     break;
                 } else {
                     // Reset the index for the current dimension
-                    index[dim] = ranges[dim].0;
                     src_index[dim] = 0;
 
                     // Move to the previous dimension
@@ -508,6 +582,30 @@ impl Tensor {
             println!();
         }
         Ok(())
+    }
+
+    pub fn stack(tensors: &[Self]) -> Result<Self, TensorError> {
+        let base_shape = tensors[0].shape.clone();
+        if tensors.iter().any(|t| t.shape != base_shape) {
+            return Err(TensorError::ShapeMismatchBetweenTensors);
+        }
+        let n_tensors = tensors.len();
+
+        let range_vector: Vec<(usize, usize)> =
+            base_shape.clone().into_iter().map(|x| (0, x - 1)).collect();
+
+        let mut stack_shape = base_shape.clone();
+        stack_shape.insert(0, n_tensors);
+
+        let mut stacked = Tensor::zeros(&stack_shape);
+
+        for (i, t) in tensors.iter().enumerate() {
+            let mut ranges = range_vector.clone();
+            ranges.insert(0, (i, i));
+
+            stacked.set_slice(&ranges, t)?;
+        }
+        Ok(stacked)
     }
 }
 

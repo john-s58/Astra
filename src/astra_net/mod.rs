@@ -2,7 +2,10 @@ pub mod activation;
 pub mod conv2d;
 pub mod dense;
 pub mod layer;
+pub mod net_error;
+
 use crate::astra_net::layer::Layer;
+use crate::astra_net::net_error::NetError;
 use crate::tensor::Tensor;
 
 pub struct Net {
@@ -26,18 +29,19 @@ impl Net {
         self.layers.push(layer);
     }
 
-    pub fn feed_forward(&mut self, input: &Tensor) -> Tensor {
+    pub fn feed_forward(&mut self, input: &Tensor) -> Result<Tensor, NetError> {
         let mut output = input.to_owned();
         for l in self.layers.iter_mut() {
-            output = l.feed_forward(&output);
+            output = l.feed_forward(&output)?;
         }
-        output
+        Ok(output)
     }
 
-    pub fn back_propagation(&mut self, input: &Tensor, target: &Tensor) {
-        let output = self.feed_forward(input);
+    pub fn back_propagation(&mut self, input: &Tensor, target: &Tensor) -> Result<(), NetError> {
+        let output = self.feed_forward(input)?;
 
-        let mut error = Tensor::from_vec(output.clone().to_vec(), vec![output.len()]).unwrap_or_default();
+        let mut error =
+            Tensor::from_vec(output.clone().to_vec(), vec![output.len()]).unwrap_or_default();
 
         error = Tensor::from_vec(
             error
@@ -47,10 +51,12 @@ impl Net {
                 .map(|(x, y)| x - y)
                 .collect(),
             vec![output.len()],
-        ).unwrap_or_default();
+        )
+        .unwrap_or_default();
 
         for l in self.layers.iter_mut().rev() {
-            error = l.back_propagation(error, 0.01);
+            error = l.back_propagation(error, 0.01)?;
         }
+        Ok(())
     }
 }
