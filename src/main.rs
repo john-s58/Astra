@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::panic::UnwindSafe;
 
 use crate::astra_net::activation::{LeakyReLU, Softmax};
 use crate::astra_net::conv2d::LayerConv2D;
@@ -19,7 +18,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     // test_tensors()?;
 
     // test_dense()?;
-    
 
     test_conv()?;
     Ok(())
@@ -159,7 +157,7 @@ fn test_conv() -> Result<(), Box<dyn Error>> {
 
     let rev = flat.back_propagation(flattened.clone(), 0.)?;
 
-    // println!("Rev = {:#?}", rev);
+    println!("Rev = {:#?}", rev);
 
     Ok(())
 }

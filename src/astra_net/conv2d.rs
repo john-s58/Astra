@@ -83,7 +83,77 @@ impl LayerConv2D {
                 .sum();
             }
         }
-        Ok(output)
+        Ok(self.activation.call(output))
+    }
+
+    fn calculate_gradients_per_filter(
+        &self,
+        filter_error: &Tensor,
+        filter: &Tensor,
+    ) -> Result<Tensor, NetError> {
+        let input = match self.input.clone() {
+            None => return Err(NetError::CustomError("uninit".to_string())),
+            Some(x) => x,
+        };
+
+        let mut gradient = Tensor::zeros(&filter.shape);
+
+        let padded_filter_error = filter_error
+            .pad(&[
+                (filter.shape[0] - 1, filter.shape[0] - 1),
+                (filter.shape[1] - 1, filter.shape[1] - 1),
+            ])
+            .map_err(NetError::TensorBasedError)?;
+
+        for y in 0..filter.shape[0] {
+            for x in 0..filter.shape[1] {
+                *(gradient
+                    .get_element_mut(&[y, x])
+                    .map_err(NetError::TensorBasedError)?) = (input.to_owned()
+                    * padded_filter_error
+                        .slice(&[(y, y + input.shape[0] - 1), (x, x + input.shape[1] - 1)])
+                        .map_err(NetError::TensorBasedError)?)
+                .sum();
+            }
+        }
+
+        Ok(gradient)
+    }
+
+    fn calculate_error_to_previous_layer(
+        &self,
+        filter_error: &Tensor,
+        filter: &Tensor,
+        layer_output_cur_filter: &Tensor,
+    ) -> Result<Tensor, NetError> {
+        let dL_dO =
+            filter_error.to_owned() * self.activation.derive(layer_output_cur_filter.to_owned());
+        let rotated_filter = filter
+            .rotate_180_degrees()
+            .map_err(NetError::TensorBasedError)?;
+        let mut dL_dI = Tensor::zeros(&layer_output_cur_filter.shape);
+
+        let padded_dL_dO = dL_dO
+            .pad(&[
+                (filter.shape[0] - 1, filter.shape[0] - 1),
+                (filter.shape[1] - 1, filter.shape[1] - 1),
+            ])
+            .map_err(NetError::TensorBasedError)?;
+        for y in 0..layer_output_cur_filter.shape[0] {
+            for x in 0..layer_output_cur_filter.shape[1] {
+                *(dL_dI
+                    .get_element_mut(&[y, x])
+                    .map_err(NetError::TensorBasedError)?) = (padded_dL_dO
+                    .slice(&[(y, y + filter.shape[0] - 1), (x, x + filter.shape[1] - 1)])
+                    .map_err(NetError::TensorBasedError)?
+                    .reshape(&filter.shape)
+                    .map_err(NetError::TensorBasedError)?
+                    * rotated_filter.clone())
+                .sum();
+            }
+        }
+
+        Ok(dL_dI)
     }
 }
 
@@ -98,6 +168,37 @@ impl Layer for LayerConv2D {
     }
 
     fn back_propagation(&mut self, error: Tensor, learning_rate: f64) -> Result<Tensor, NetError> {
-        todo!()
+        let mut dL_dI = Tensor::zeros(&self.input_shape);
+        let mut gradients = vec![Tensor::zeros(&self.kernel_shape); self.filters.len()];
+
+        for (i, filter) in self.filters.iter().enumerate() {
+            let filter_error = error
+                .slice(&[(i, i), (0, filter.shape[0]), (0, filter.shape[1])])
+                .map_err(NetError::TensorBasedError)?;
+
+            // Calculate gradients per filter
+            gradients[i] = self.calculate_gradients_per_filter(&filter_error, &filter)?;
+
+            // Calculate error to pass to the previous layer
+            let layer_output = self
+                .output
+                .clone()
+                .unwrap()
+                .slice(&[(i, i), (0, filter.shape[0]), (0, filter.shape[1])])
+                .map_err(NetError::TensorBasedError)?
+                .reshape(&filter.shape)
+                .map_err(NetError::TensorBasedError)?;
+
+            let dL_dI_filter =
+                self.calculate_error_to_previous_layer(&filter_error, &filter, &layer_output)?;
+            dL_dI = dL_dI + dL_dI_filter;
+        }
+
+        // Update the filters
+        for (filter, gradient) in self.filters.iter_mut().zip(gradients.iter()) {
+            *filter = filter.to_owned() - (gradient.to_owned() * learning_rate);
+        }
+
+        Ok(dL_dI)
     }
 }

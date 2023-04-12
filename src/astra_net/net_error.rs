@@ -7,6 +7,7 @@ pub enum NetError {
     CustomError(String),
     TensorBasedError(TensorError),
     BadInputShape,
+    UninitializedLayerParameter(String),
 }
 
 impl fmt::Display for NetError {
@@ -20,6 +21,9 @@ impl fmt::Display for NetError {
             }
             NetError::BadInputShape => {
                 write!(f, "Input does not match layer shape")
+            }
+            NetError::UninitializedLayerParameter(s) => {
+                write!(f, "Trying to use uninitialized parameter {:?}", s)
             }
         }
     }

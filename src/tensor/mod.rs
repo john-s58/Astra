@@ -557,6 +557,44 @@ impl Tensor {
         }
         Ok(stacked)
     }
+
+    pub fn rotate_90_degrees(&self) -> Result<Self, TensorError> {
+        if self.ndim != 2 {
+            return Err(TensorError::UnsupportedDimension);
+        }
+
+        let (rows, cols) = (self.shape[0], self.shape[1]);
+        let mut rotated = Tensor::from_element(0.0, vec![cols, rows]);
+
+        for i in 0..rows {
+            for j in 0..cols {
+                let value = *self.get_element(&[i, j]).unwrap();
+                *rotated.get_element_mut(&[j, rows - 1 - i]).unwrap() = value;
+            }
+        }
+
+        Ok(rotated)
+    }
+
+    pub fn rotate_180_degrees(&self) -> Result<Self, TensorError> {
+        if self.ndim != 2 {
+            return Err(TensorError::UnsupportedDimension);
+        }
+
+        let (rows, cols) = (self.shape[0], self.shape[1]);
+        let mut rotated = Tensor::from_element(0.0, vec![rows, cols]);
+
+        for i in 0..rows {
+            for j in 0..cols {
+                let value = *self.get_element(&[i, j]).unwrap();
+                *rotated
+                    .get_element_mut(&[rows - 1 - i, cols - 1 - j])
+                    .unwrap() = value;
+            }
+        }
+
+        Ok(rotated)
+    }
 }
 
 impl std::ops::Mul<Tensor> for f64 {
