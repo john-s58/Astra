@@ -50,7 +50,7 @@ impl Tensor {
         }
     }
 
-    pub fn from_fn(shape: Vec<usize>, func: impl Fn() -> f64) -> Self {
+    pub fn from_fn(shape: Vec<usize>, mut func: impl FnMut() -> f64) -> Self {
         Self {
             data: (0..shape.iter().product()).map(|_| func()).collect(),
             shape: shape.clone(),
@@ -380,56 +380,6 @@ impl Tensor {
 
         Ok(sub_matrix)
     }
-
-    // pub fn set_slice(
-    //     &mut self,
-    //     ranges: &[(usize, usize)],
-    //     source: &Self,
-    // ) -> Result<(), TensorError> {
-    //     if self.ndim != source.ndim || self.ndim != ranges.len() {
-    //         return Err(TensorError::CustomError(
-    //             "dimensions error with self, source and ranges".to_string(),
-    //         ));
-    //     }
-    //     for dim in 0..self.ndim {
-    //         if (ranges[dim].1 - ranges[dim].0) + 1 != source.shape[dim] {
-    //             return Err(TensorError::CustomError(
-    //                 "slice shape different from source shape".to_string(),
-    //             ));
-    //         }
-    //     }
-    //     let mut index: Vec<usize> = ranges.iter().map(|r| r.0).collect();
-    //     let mut src_index = vec![0; self.ndim];
-
-    //     loop {
-    //         // Copy element from the source tensor to the current tensor
-    //         let value = *source.get_element(&src_index).unwrap();
-    //         *self.get_element_mut(&index).unwrap() = value;
-
-    //         // Increment the indices for the source tensor and current tensor
-    //         let mut dim = self.ndim - 1;
-    //         while dim < self.ndim {
-    //             index[dim] += 1;
-    //             src_index[dim] += 1;
-
-    //             // Check if the index is within the specified range
-    //             if index[dim] <= ranges[dim].1 {
-    //                 break;
-    //             } else {
-    //                 // Reset the index for the current dimension
-    //                 index[dim] = ranges[dim].0;
-    //                 src_index[dim] = 0;
-
-    //                 // Move to the previous dimension
-    //                 if dim > 0 {
-    //                     dim -= 1;
-    //                 } else {
-    //                     return Ok(()); // All elements processed, exit the loop
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
     pub fn set_slice(
         &mut self,
         ranges: &[(usize, usize)],

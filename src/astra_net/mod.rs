@@ -1,6 +1,7 @@
 pub mod activation;
 pub mod conv2d;
 pub mod dense;
+pub mod flatten;
 pub mod layer;
 pub mod net_error;
 
@@ -52,7 +53,7 @@ impl Net {
                 .collect(),
             vec![output.len()],
         )
-        .unwrap_or_default();
+        .map_err(NetError::TensorBasedError)?;
 
         for l in self.layers.iter_mut().rev() {
             error = l.back_propagation(error, 0.01)?;

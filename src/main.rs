@@ -4,6 +4,7 @@ use std::panic::UnwindSafe;
 use crate::astra_net::activation::{LeakyReLU, Softmax};
 use crate::astra_net::conv2d::LayerConv2D;
 use crate::astra_net::dense::LayerDense;
+use crate::astra_net::flatten::LayerFlatten;
 use crate::astra_net::layer::Layer;
 use crate::astra_net::Net;
 // use crate::mutating::net::MutatingNet;
@@ -15,13 +16,15 @@ mod tensor;
 use rand::Rng;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    test_tensors()?;
+    // test_tensors()?;
 
-    test_astra_net_tensor()?;
-    // test_astra_mutating_mutatingnet();
+    // test_dense()?;
+    
 
+    test_conv()?;
     Ok(())
 }
+
 fn test_tensors() -> Result<(), Box<dyn Error>> {
     let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
     let shape = vec![3, 3];
@@ -66,7 +69,7 @@ fn test_tensors() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn test_astra_net_tensor() -> Result<(), Box<dyn Error>> {
+fn test_dense() -> Result<(), Box<dyn Error>> {
     let l1 = Box::new(LayerDense::new(6, 2, Box::new(LeakyReLU::new(0.1)))?);
     let l2 = Box::new(LayerDense::new(6, 6, Box::new(LeakyReLU::new(0.1)))?);
     let l3 = Box::new(LayerDense::new(12, 6, Box::new(LeakyReLU::new(0.1)))?);
@@ -125,17 +128,38 @@ fn generate_2d_cluster_dataset(num_samples: usize) -> Vec<Tensor> {
     data
 }
 
-// fn test_astra_mutating_mutatingnet() {
-//     let net = MutatingNet::from_config(vec![3, 5, 3]);
-//     let net2 = MutatingNet::from_config(vec![3, 5, 3]);
+fn test_conv() -> Result<(), Box<dyn Error>> {
+    let filters = vec![
+        Tensor::from_vec(vec![1., 0., 1., 0.], vec![2, 2])?,
+        Tensor::from_vec(vec![0., 1., 0., 1.], vec![2, 2])?,
+        Tensor::from_vec(vec![1., 1., 0., 0.], vec![2, 2])?,
+        Tensor::from_vec(vec![0., 0., 1., 1.], vec![2, 2])?,
+    ];
 
-//     let mut net_combined = net.crossover(&net2).unwrap();
+    let mut conv_layer = LayerConv2D::new(
+        vec![128, 128],
+        vec![2, 2],
+        10,
+        0,
+        1,
+        Box::new(LeakyReLU::new(0.3)),
+    );
 
-//     net_combined.mutate();
+    let image = Tensor::from_element(3.5, vec![128, 128]);
 
-//     let input = Tensor::from_element(1.3, vec![3]);
+    let result = conv_layer.feed_forward(&image)?;
 
-//     let res = net_combined.feed_forward(&input);
+    println!("Conv Result = {:#?}", result);
 
-//     println!("mut net feed forward result = {:#?}", res);
-// }
+    let mut flat = LayerFlatten::new();
+
+    let flattened = flat.feed_forward(&result)?;
+
+    println!("Flat = {:#?}", flattened);
+
+    let rev = flat.back_propagation(flattened.clone(), 0.)?;
+
+    // println!("Rev = {:#?}", rev);
+
+    Ok(())
+}
