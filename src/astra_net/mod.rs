@@ -1,5 +1,6 @@
 pub mod activation;
 pub mod conv2d;
+pub mod conv2d2;
 pub mod dense;
 pub mod flatten;
 pub mod layer;
@@ -41,8 +42,8 @@ impl Net {
     pub fn back_propagation(&mut self, input: &Tensor, target: &Tensor) -> Result<(), NetError> {
         let output = self.feed_forward(input)?;
 
-        let mut error =
-            Tensor::from_vec(output.clone().to_vec(), vec![output.len()]).unwrap_or_default();
+        let mut error = Tensor::from_vec(output.clone().to_vec(), vec![output.len()])
+            .map_err(NetError::TensorBasedError)?;
 
         error = Tensor::from_vec(
             error

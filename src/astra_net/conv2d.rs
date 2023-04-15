@@ -26,7 +26,7 @@ impl LayerConv2D {
         activation: Box<dyn Activation>,
     ) -> Self {
         let mut rng = rand::thread_rng();
-        let normal = Normal::new(-1.0, 1.0).unwrap();
+        let normal = Normal::new(0., 1.0).unwrap();
 
         let filters = (0..n_filters)
             .into_iter()
@@ -100,20 +100,26 @@ impl LayerConv2D {
 
         let padded_filter_error = filter_error
             .pad(&[
-                (filter.shape[0] - 1, filter.shape[0] - 1),
-                (filter.shape[1] - 1, filter.shape[1] - 1),
+                ((filter.shape[0] - 1) / 2, (filter.shape[0] - 1) / 2),
+                ((filter.shape[1] - 1) / 2, (filter.shape[1] - 1) / 2),
             ])
             .map_err(NetError::TensorBasedError)?;
 
-        for y in 0..filter.shape[0] {
-            for x in 0..filter.shape[1] {
-                *(gradient
+        for y in 0..gradient.shape[0] {
+            for x in 0..gradient.shape[1] {
+                let a = gradient
                     .get_element_mut(&[y, x])
-                    .map_err(NetError::TensorBasedError)?) = (input.to_owned()
-                    * padded_filter_error
-                        .slice(&[(y, y + input.shape[0] - 1), (x, x + input.shape[1] - 1)])
-                        .map_err(NetError::TensorBasedError)?)
-                .sum();
+                    .map_err(NetError::TensorBasedError)?;
+
+                let input_region = input
+                    .slice(&[(y, y + filter.shape[0] - 1), (x, x + filter.shape[1] - 1)])
+                    .map_err(NetError::TensorBasedError)?;
+
+                let padded_filter_error_region = padded_filter_error
+                    .slice(&[(y, y + filter.shape[0] - 1), (x, x + filter.shape[1] - 1)])
+                    .map_err(NetError::TensorBasedError)?;
+
+                *a = (input_region * padded_filter_error_region).sum();
             }
         }
 
@@ -128,6 +134,7 @@ impl LayerConv2D {
     ) -> Result<Tensor, NetError> {
         let dL_dO =
             filter_error.to_owned() * self.activation.derive(layer_output_cur_filter.to_owned());
+
         let rotated_filter = filter
             .rotate_180_degrees()
             .map_err(NetError::TensorBasedError)?;
@@ -139,6 +146,7 @@ impl LayerConv2D {
                 (filter.shape[1] - 1, filter.shape[1] - 1),
             ])
             .map_err(NetError::TensorBasedError)?;
+
         for y in 0..layer_output_cur_filter.shape[0] {
             for x in 0..layer_output_cur_filter.shape[1] {
                 *(dL_dI
@@ -159,39 +167,60 @@ impl LayerConv2D {
 
 impl Layer for LayerConv2D {
     fn feed_forward(&mut self, inputs: &Tensor) -> Result<Tensor, NetError> {
+        self.input = Some(inputs.to_owned());
+
         let mut output: Vec<Tensor> = Vec::new();
 
         for filter in self.filters.clone().into_iter() {
             output.push(self.convolution(inputs, &filter)?);
         }
-        Tensor::stack(&output).map_err(NetError::TensorBasedError)
+
+        let layer_result = Tensor::stack(&output).map_err(NetError::TensorBasedError)?;
+        self.output = Some(layer_result.clone());
+
+        Ok(layer_result)
     }
 
     fn back_propagation(&mut self, error: Tensor, learning_rate: f64) -> Result<Tensor, NetError> {
         let mut dL_dI = Tensor::zeros(&self.input_shape);
         let mut gradients = vec![Tensor::zeros(&self.kernel_shape); self.filters.len()];
 
+        let layer_output = self.output.clone().unwrap();
+
         for (i, filter) in self.filters.iter().enumerate() {
             let filter_error = error
-                .slice(&[(i, i), (0, filter.shape[0]), (0, filter.shape[1])])
+                .slice(&[(i, i), (0, error.shape[1] - 1), (0, error.shape[2] - 1)])
+                .map_err(NetError::TensorBasedError)?
+                .reshape(&[error.shape[1], error.shape[2]])
                 .map_err(NetError::TensorBasedError)?;
 
             // Calculate gradients per filter
             gradients[i] = self.calculate_gradients_per_filter(&filter_error, &filter)?;
 
             // Calculate error to pass to the previous layer
-            let layer_output = self
-                .output
+            let filter_output = layer_output
                 .clone()
-                .unwrap()
-                .slice(&[(i, i), (0, filter.shape[0]), (0, filter.shape[1])])
+                .slice(&[
+                    (i, i),
+                    (0, layer_output.shape[1] - 1),
+                    (0, layer_output.shape[2] - 1),
+                ])
                 .map_err(NetError::TensorBasedError)?
-                .reshape(&filter.shape)
+                .reshape(&[error.shape[1], error.shape[2]])
                 .map_err(NetError::TensorBasedError)?;
 
             let dL_dI_filter =
-                self.calculate_error_to_previous_layer(&filter_error, &filter, &layer_output)?;
-            dL_dI = dL_dI + dL_dI_filter;
+                self.calculate_error_to_previous_layer(&filter_error, &filter, &filter_output)?;
+
+            let pad_top = (filter.shape[0] - 1) / 2;
+            let pad_bottom = filter.shape[0] / 2;
+            let pad_left = (filter.shape[1] - 1) / 2;
+            let pad_right = filter.shape[1] / 2;
+
+            dL_dI = dL_dI
+                + dL_dI_filter
+                    .pad(&[(pad_top, pad_bottom), (pad_left, pad_right)])
+                    .map_err(NetError::TensorBasedError)?;
         }
 
         // Update the filters

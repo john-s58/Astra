@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use crate::astra_net::activation::{LeakyReLU, Softmax};
-use crate::astra_net::conv2d::LayerConv2D;
+use crate::astra_net::conv2d2::LayerConv2D;
 use crate::astra_net::dense::LayerDense;
 use crate::astra_net::flatten::LayerFlatten;
 use crate::astra_net::layer::Layer;
@@ -13,13 +13,16 @@ mod astra_net;
 // mod mutating;
 mod tensor;
 use rand::Rng;
+use tensor::tensor_error::TensorError;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // test_tensors()?;
 
     // test_dense()?;
 
-    test_conv()?;
+    // test_conv()?;
+
+    test_image_rec()?;
     Ok(())
 }
 
@@ -137,6 +140,7 @@ fn test_conv() -> Result<(), Box<dyn Error>> {
     let mut conv_layer = LayerConv2D::new(
         vec![128, 128],
         vec![2, 2],
+        3,
         10,
         0,
         1,
@@ -161,3 +165,83 @@ fn test_conv() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, TensorError> {
+    let mut rng = rand::thread_rng();
+    let mut data: Vec<Tensor> = Vec::with_capacity(n_samples);
+
+    for _ in 0..n_samples / 2 {
+        data.push(Tensor::from_fn(vec![3, 8, 8], || {
+            rng.gen_range(0.1..0.3)
+        }));
+    }
+    for _ in (n_samples / 2)..n_samples {
+        data.push(Tensor::from_fn(vec![3, 8, 8], || {
+            rng.gen_range(0.5..0.7)
+        }));
+    }
+
+    Ok(data)
+}
+
+fn test_image_rec() -> Result<(), Box<dyn Error>> {
+    let ns = 5000;
+
+    let data = generate_image_data(ns)?;
+    let mut targets: Vec<Tensor> = Vec::with_capacity(ns);
+    for _ in 0..ns / 2 {
+        targets.push(Tensor::from_vec(vec![1., 0.], vec![2])?);
+    }
+    for _ in ns / 2..ns {
+        targets.push(Tensor::from_vec(vec![0., 1.], vec![2])?);
+    }
+
+    let s1 = data[0].clone();
+    let s2 = data[ns / 2 + 1].clone();
+
+    let mut conv_layer = LayerConv2D::new(
+        vec![8, 8],
+        vec![2, 2],
+        3,
+        5,
+        0,
+        1,
+        Box::new(LeakyReLU::new(0.3)),
+    );
+    let mut flat_layer = LayerFlatten::new();
+    let mut hidden_layer = LayerDense::new(24, 245, Box::new(LeakyReLU::new(0.3)))?;
+    let mut output_layer = LayerDense::new(2, 24, Box::new(Softmax::new()))?;
+
+    let mut net = Net::new();
+    net.set_learning_rate(0.1);
+
+    net.add_layer(Box::new(conv_layer));
+    net.add_layer(Box::new(flat_layer));
+    net.add_layer(Box::new(hidden_layer));
+    net.add_layer(Box::new(output_layer));
+
+    let r1 = net.feed_forward(&s1)?;
+    let r2 = net.feed_forward(&s2)?;
+
+    println!("r1 pretrain = {:#?}", r1);
+    println!("r2 pretrain = {:#?}", r2);
+
+    for (inp, tar) in data.into_iter().zip(targets.into_iter()) {
+        net.back_propagation(&inp, &tar)?;
+    }
+
+    let r1 = net.feed_forward(&s1)?;
+    let r2 = net.feed_forward(&s2)?;
+
+    println!("r1 posttrain = {:#?}", r1);
+    println!("r2 posttrain = {:#?}", r2);
+
+    Ok(())
+}
+
+/*
+   changes needed to be made:
+       - conv2d layer needs to recieve n_channels in new function which will be equal to the input color channels (rgb = 3, grayscale = 1)
+       - for each color channel there will be a different filter meaning if i want 10 filter with 3 channels this will result 30 filters
+           or 10 filters that are 3D
+*/
