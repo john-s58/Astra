@@ -171,14 +171,10 @@ fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, TensorError> {
     let mut data: Vec<Tensor> = Vec::with_capacity(n_samples);
 
     for _ in 0..n_samples / 2 {
-        data.push(Tensor::from_fn(vec![3, 8, 8], || {
-            rng.gen_range(0.1..0.3)
-        }));
+        data.push(Tensor::from_fn(vec![3, 8, 8], || rng.gen_range(0.1..0.3)));
     }
     for _ in (n_samples / 2)..n_samples {
-        data.push(Tensor::from_fn(vec![3, 8, 8], || {
-            rng.gen_range(0.5..0.7)
-        }));
+        data.push(Tensor::from_fn(vec![3, 8, 8], || rng.gen_range(0.5..0.7)));
     }
 
     Ok(data)
@@ -238,10 +234,3 @@ fn test_image_rec() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
-
-/*
-   changes needed to be made:
-       - conv2d layer needs to recieve n_channels in new function which will be equal to the input color channels (rgb = 3, grayscale = 1)
-       - for each color channel there will be a different filter meaning if i want 10 filter with 3 channels this will result 30 filters
-           or 10 filters that are 3D
-*/

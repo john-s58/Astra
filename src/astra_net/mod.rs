@@ -4,6 +4,7 @@ pub mod conv2d2;
 pub mod dense;
 pub mod flatten;
 pub mod layer;
+pub mod loss;
 pub mod net_error;
 
 use crate::astra_net::layer::Layer;
