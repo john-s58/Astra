@@ -544,7 +544,7 @@ impl Tensor {
         let range_vector: Vec<(usize, usize)> =
             base_shape.clone().into_iter().map(|x| (0, x - 1)).collect();
 
-        let mut stack_shape = base_shape.clone();
+        let mut stack_shape = base_shape;
         stack_shape.insert(0, n_tensors);
 
         let mut stacked = Tensor::zeros(&stack_shape);

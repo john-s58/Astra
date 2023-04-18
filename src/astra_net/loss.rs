@@ -1,7 +1,9 @@
 use crate::tensor::tensor_error::TensorError;
 use crate::tensor::Tensor;
 
-pub trait loss {
+use std::f64::EPSILON;
+
+pub trait Loss {
     fn calculate(&self, output: &Tensor, target: &Tensor) -> Result<f64, TensorError>;
     fn get_output_layer_error(
         &self,
@@ -12,7 +14,13 @@ pub trait loss {
 
 pub struct MSE;
 
-impl loss for MSE {
+impl MSE {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Loss for MSE {
     fn calculate(&self, output: &Tensor, target: &Tensor) -> Result<f64, TensorError> {
         if output.shape != target.shape {
             return Err(TensorError::ShapeMismatchBetweenTensors);
@@ -22,7 +30,8 @@ impl loss for MSE {
             .into_iter()
             .zip(target.to_vec().into_iter())
             .map(|(a, b)| (a - b) * (a - b))
-            .sum())
+            .sum::<f64>()
+            / 3.)
     }
     fn get_output_layer_error(
         &self,
@@ -37,7 +46,7 @@ impl loss for MSE {
                 .to_vec()
                 .into_iter()
                 .zip(target.to_vec().into_iter())
-                .map(|(a, b)| (a - b) * (a - b))
+                .map(|(a, b)| ((a - b) * (a - b)) / 3.)
                 .collect(),
             output.shape.to_owned(),
         )?)
@@ -46,12 +55,23 @@ impl loss for MSE {
 
 pub struct CategoricalCrossEntropy;
 
-impl loss for CategoricalCrossEntropy {
+impl CategoricalCrossEntropy {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Loss for CategoricalCrossEntropy {
     fn calculate(&self, output: &Tensor, target: &Tensor) -> Result<f64, TensorError> {
         if output.shape != target.shape {
             return Err(TensorError::ShapeMismatchBetweenTensors);
         }
-        todo!()
+        Ok(output
+            .to_vec()
+            .into_iter()
+            .zip(target.to_vec().into_iter())
+            .map(|(a, b)| -(a + (b + EPSILON).ln()))
+            .sum::<f64>())
     }
     fn get_output_layer_error(
         &self,
@@ -61,6 +81,14 @@ impl loss for CategoricalCrossEntropy {
         if output.shape != target.shape {
             return Err(TensorError::ShapeMismatchBetweenTensors);
         }
-        todo!()
+        Ok(Tensor::from_vec(
+            output
+                .to_vec()
+                .into_iter()
+                .zip(target.to_vec().into_iter())
+                .map(|(a, b)| -(a + (b + EPSILON).ln()))
+                .collect(),
+            output.shape.to_owned(),
+        )?)
     }
 }

@@ -7,6 +7,7 @@ use crate::astra_net::flatten::LayerFlatten;
 use crate::astra_net::layer::Layer;
 use crate::astra_net::Net;
 // use crate::mutating::net::MutatingNet;
+use crate::astra_net::loss::{CategoricalCrossEntropy, MSE};
 use crate::tensor::Tensor;
 
 mod astra_net;
@@ -77,7 +78,7 @@ fn test_dense() -> Result<(), Box<dyn Error>> {
     let l4 = Box::new(LayerDense::new(6, 12, Box::new(LeakyReLU::new(0.1)))?);
     let lend = Box::new(LayerDense::new(2, 6, Box::new(Softmax::new()))?);
 
-    let mut my_net = Net::new();
+    let mut my_net = Net::new(Box::new(MSE::new()), 0.001);
     my_net.set_learning_rate(0.001);
 
     my_net.add_layer(l1);
@@ -208,8 +209,8 @@ fn test_image_rec() -> Result<(), Box<dyn Error>> {
     let mut hidden_layer = LayerDense::new(24, 245, Box::new(LeakyReLU::new(0.3)))?;
     let mut output_layer = LayerDense::new(2, 24, Box::new(Softmax::new()))?;
 
-    let mut net = Net::new();
-    net.set_learning_rate(0.1);
+    let mut net = Net::new(Box::new(CategoricalCrossEntropy::new()), 0.001);
+    net.set_learning_rate(0.001);
 
     net.add_layer(Box::new(conv_layer));
     net.add_layer(Box::new(flat_layer));
