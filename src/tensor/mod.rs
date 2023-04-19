@@ -7,7 +7,6 @@ pub struct Tensor {
     pub ndim: usize,
 }
 
-use std::env::temp_dir;
 use std::f64;
 use std::f64::EPSILON;
 
@@ -64,24 +63,20 @@ impl Tensor {
         }
 
         if self.shape.clone().into_iter().reduce(|a, b| a * b).unwrap()
-            != new_shape
-                .to_owned()
-                .into_iter()
-                .reduce(|a, b| a * b)
-                .unwrap()
+            != new_shape.iter().copied().reduce(|a, b| a * b).unwrap()
         {
             return Err(TensorError::ShapeDataMismatch);
         }
         let ndim = new_shape.len();
         Ok(Self {
             data: self.data,
-            shape: Vec::from_iter(new_shape.to_owned().into_iter()),
+            shape: Vec::from_iter(new_shape.iter().copied()),
             ndim,
         })
     }
 
     pub fn identity(shape: Vec<usize>) -> Result<Self, TensorError> {
-        if shape.windows(2).all(|w| w[0] == w[1]) == false {
+        if !shape.windows(2).all(|w| w[0] == w[1]) {
             return Err(TensorError::NonSquareMatrix);
         }
         let ndim = shape.len();
@@ -166,7 +161,7 @@ impl Tensor {
 
     pub fn get_element(&self, indices: &[usize]) -> Result<&f64, TensorError> {
         let index = self.get_index(indices)?;
-        Ok(&self.data.get(index).unwrap())
+        Ok(self.data.get(index).unwrap())
     }
 
     pub fn get_element_mut(&mut self, indices: &[usize]) -> Result<&mut f64, TensorError> {
@@ -251,7 +246,7 @@ impl Tensor {
                     if u.get_element(&[i, i]).unwrap().abs() < EPSILON {
                         return Err(TensorError::CustomError(
                             format!("LU Decomposition failed due element at indices [{:?}, {:?}] >= EPSILON", i, i)
-                            .to_string()));
+                            ));
                     }
 
                     let l_value = (*self.get_element(&[j, i]).unwrap() - sum)
@@ -412,7 +407,7 @@ impl Tensor {
             }
         }
 
-        let mut index: Vec<usize> = ranges.iter().map(|r| r.0).collect();
+        let index: Vec<usize> = ranges.iter().map(|r| r.0).collect();
         let mut src_index = vec![0; source.ndim];
 
         loop {
@@ -486,7 +481,7 @@ impl Tensor {
                     if dim > 0 {
                         dim -= 1;
                     } else {
-                        return Ok(Tensor::from_vec(new_data, new_shape)?); // All elements processed, exit the loop
+                        return Tensor::from_vec(new_data, new_shape); // All elements processed, exit the loop
                     }
                 }
             }
@@ -507,13 +502,13 @@ impl Tensor {
 
         let index_ranges: Vec<(usize, usize)> = padded
             .shape
-            .to_owned()
-            .into_iter()
-            .zip(padding.into_iter())
+            .iter()
+            .copied()
+            .zip(padding.iter())
             .map(|(dim_size, (pad_before, pad_after))| (*pad_before, dim_size - pad_after - 1))
             .collect();
 
-        padded.set_slice(&index_ranges.as_slice(), &self)?;
+        padded.set_slice(index_ranges.as_slice(), self)?;
 
         Ok(padded)
     }

@@ -41,7 +41,7 @@ impl Loss for MSE {
         if output.shape != target.shape {
             return Err(TensorError::ShapeMismatchBetweenTensors);
         }
-        Ok(Tensor::from_vec(
+        Tensor::from_vec(
             output
                 .to_vec()
                 .into_iter()
@@ -49,7 +49,7 @@ impl Loss for MSE {
                 .map(|(a, b)| ((a - b) * (a - b)) / 3.)
                 .collect(),
             output.shape.to_owned(),
-        )?)
+        )
     }
 }
 
@@ -81,7 +81,7 @@ impl Loss for CategoricalCrossEntropy {
         if output.shape != target.shape {
             return Err(TensorError::ShapeMismatchBetweenTensors);
         }
-        Ok(Tensor::from_vec(
+        Tensor::from_vec(
             output
                 .to_vec()
                 .into_iter()
@@ -89,6 +89,6 @@ impl Loss for CategoricalCrossEntropy {
                 .map(|(a, b)| -(a + (b + EPSILON).ln()))
                 .collect(),
             output.shape.to_owned(),
-        )?)
+        )
     }
 }

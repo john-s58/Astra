@@ -1,12 +1,10 @@
 use crate::astra_net::activation::Activation;
 use crate::astra_net::layer::Layer;
 use crate::astra_net::net_error::NetError;
-use crate::tensor::tensor_error::TensorError;
 use crate::tensor::Tensor;
 use ndarray_rand::rand_distr::{Distribution, Normal};
 
 pub struct LayerDense {
-    size: usize,
     weights: Tensor,
     biases: Tensor,
     activation: Box<dyn Activation>,
@@ -23,7 +21,6 @@ impl LayerDense {
         let normal = Normal::new(-1.0, 1.0).unwrap();
 
         Ok(Self {
-            size,
             weights: Tensor::from_vec(
                 (0..size * input_size)
                     .map(|_| normal.sample(&mut rng))
@@ -50,7 +47,7 @@ impl Layer for LayerDense {
 
         let inputs_mat = inputs
             .to_owned()
-            .reshape(&vec![1, inputs.len()])
+            .reshape(&[1, inputs.len()])
             .map_err(NetError::TensorBasedError)?;
 
         self.output = Some(
@@ -60,7 +57,7 @@ impl Layer for LayerDense {
                 + self
                     .biases
                     .clone()
-                    .reshape(&vec![1, self.biases.len()])
+                    .reshape(&[1, self.biases.len()])
                     .map_err(NetError::TensorBasedError)?,
         );
 
@@ -74,7 +71,7 @@ impl Layer for LayerDense {
 
         let err = error
             .clone()
-            .reshape(&vec![1, error.len()])
+            .reshape(&[1, error.len()])
             .map_err(NetError::TensorBasedError)?
             * delta_output;
 
@@ -82,12 +79,12 @@ impl Layer for LayerDense {
             .input
             .clone()
             .unwrap()
-            .reshape(&vec![1, self.input.clone().unwrap().len()])
+            .reshape(&[1, self.input.clone().unwrap().len()])
             .map_err(NetError::TensorBasedError)?;
 
         let err_mat = err
             .clone()
-            .reshape(&vec![1, err.len()])
+            .reshape(&[1, err.len()])
             .map_err(NetError::TensorBasedError)?;
 
         let delta_weights = input_mat
@@ -100,13 +97,12 @@ impl Layer for LayerDense {
         self.weights = self.weights.clone() - (delta_weights * learning_rate);
         self.biases = self.biases.clone() - (delta_biases * learning_rate);
 
-        Ok(err
-            .dot(
-                &self
-                    .weights
-                    .transpose()
-                    .map_err(NetError::TensorBasedError)?,
-            )
-            .map_err(NetError::TensorBasedError)?)
+        err.dot(
+            &self
+                .weights
+                .transpose()
+                .map_err(NetError::TensorBasedError)?,
+        )
+        .map_err(NetError::TensorBasedError)
     }
 }

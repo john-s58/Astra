@@ -1,10 +1,9 @@
 use std::error::Error;
 
-use crate::astra_net::activation::{LeakyReLU, Softmax};
+use crate::astra_net::activation::{LeakyReLU, Sigmoid, Softmax};
 use crate::astra_net::conv2d2::LayerConv2D;
 use crate::astra_net::dense::LayerDense;
 use crate::astra_net::flatten::LayerFlatten;
-use crate::astra_net::layer::Layer;
 use crate::astra_net::Net;
 // use crate::mutating::net::MutatingNet;
 use crate::astra_net::loss::{CategoricalCrossEntropy, MSE};
@@ -62,7 +61,7 @@ fn test_tensors() -> Result<(), Box<dyn Error>> {
         .slice(&[(0, 0), (0, 4), (0, 4)])?
         .reshape(&[5, 5])?
         .print_matrix()?;
-    println!("");
+    println!();
     stacked
         .slice(&[(1, 1), (0, 4), (0, 4)])?
         .reshape(&[5, 5])?
@@ -130,43 +129,6 @@ fn generate_2d_cluster_dataset(num_samples: usize) -> Vec<Tensor> {
     data
 }
 
-fn test_conv() -> Result<(), Box<dyn Error>> {
-    let filters = vec![
-        Tensor::from_vec(vec![1., 0., 1., 0.], vec![2, 2])?,
-        Tensor::from_vec(vec![0., 1., 0., 1.], vec![2, 2])?,
-        Tensor::from_vec(vec![1., 1., 0., 0.], vec![2, 2])?,
-        Tensor::from_vec(vec![0., 0., 1., 1.], vec![2, 2])?,
-    ];
-
-    let mut conv_layer = LayerConv2D::new(
-        vec![128, 128],
-        vec![2, 2],
-        3,
-        10,
-        0,
-        1,
-        Box::new(LeakyReLU::new(0.3)),
-    );
-
-    let image = Tensor::from_element(3.5, vec![128, 128]);
-
-    let result = conv_layer.feed_forward(&image)?;
-
-    println!("Conv Result = {:#?}", result);
-
-    let mut flat = LayerFlatten::new();
-
-    let flattened = flat.feed_forward(&result)?;
-
-    println!("Flat = {:#?}", flattened);
-
-    let rev = flat.back_propagation(flattened.clone(), 0.)?;
-
-    println!("Rev = {:#?}", rev);
-
-    Ok(())
-}
-
 fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, TensorError> {
     let mut rng = rand::thread_rng();
     let mut data: Vec<Tensor> = Vec::with_capacity(n_samples);
@@ -182,7 +144,7 @@ fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, TensorError> {
 }
 
 fn test_image_rec() -> Result<(), Box<dyn Error>> {
-    let ns = 5000;
+    let ns = 50;
 
     let data = generate_image_data(ns)?;
     let mut targets: Vec<Tensor> = Vec::with_capacity(ns);
@@ -196,15 +158,8 @@ fn test_image_rec() -> Result<(), Box<dyn Error>> {
     let s1 = data[0].clone();
     let s2 = data[ns / 2 + 1].clone();
 
-    let mut conv_layer = LayerConv2D::new(
-        vec![8, 8],
-        vec![2, 2],
-        3,
-        5,
-        0,
-        1,
-        Box::new(LeakyReLU::new(0.3)),
-    );
+    let mut conv_layer =
+        LayerConv2D::new(vec![8, 8], vec![2, 2], 3, 5, 0, 1, Box::new(Sigmoid::new()));
     let mut flat_layer = LayerFlatten::new();
     let mut hidden_layer = LayerDense::new(24, 245, Box::new(LeakyReLU::new(0.3)))?;
     let mut output_layer = LayerDense::new(2, 24, Box::new(Softmax::new()))?;

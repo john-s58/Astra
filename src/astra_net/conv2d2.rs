@@ -286,7 +286,7 @@ impl Layer for LayerConv2D {
 
         // Update filter weights
         self.filters = self.filters.to_owned()
-            - Tensor::stack(&gradients).map_err(NetError::TensorBasedError)?;
+            - (Tensor::stack(&gradients).map_err(NetError::TensorBasedError)? * learning_rate);
 
         // Sum errors for the previous layer
         let prev_layer_error_sum = prev_layer_errors

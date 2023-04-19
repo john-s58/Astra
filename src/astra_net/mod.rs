@@ -22,7 +22,7 @@ impl Net {
     pub fn new(loss: Box<dyn Loss>, learning_rate: f64) -> Self {
         Self {
             layers: Vec::new(),
-            learning_rate: 0.001,
+            learning_rate,
             loss,
         }
     }
@@ -57,9 +57,8 @@ impl Net {
             )
             .map_err(NetError::TensorBasedError)?;
 
-        println!("{:#?}", error);
-
         for l in self.layers.iter_mut().rev() {
+            println!(" ERR {:#?}", error);
             error = l.back_propagation(error, 0.01)?;
         }
         Ok(())

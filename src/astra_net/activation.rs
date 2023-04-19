@@ -59,6 +59,12 @@ impl Activation for Softmax {
 
 pub struct Sigmoid;
 
+impl Sigmoid {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl Activation for Sigmoid {
     fn call(&self, x: Tensor) -> Tensor {
         x.map(|n| 1. / (1. + (-n).exp()))
@@ -74,11 +80,19 @@ impl Activation for Sigmoid {
 
 pub struct TanH;
 
+impl TanH {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl Activation for TanH {
     fn call(&self, x: Tensor) -> Tensor {
+        _ = x;
         todo!()
     }
     fn derive(&self, x: Tensor) -> Tensor {
+        _ = x;
         todo!()
     }
     fn print_self(&self) {
