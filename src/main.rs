@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::astra_net::activation::{LeakyReLU, Sigmoid, Softmax};
+use crate::astra_net::activation::{LeakyReLU, Sigmoid, Softmax, TanH};
 use crate::astra_net::conv2d2::LayerConv2D;
 use crate::astra_net::dense::LayerDense;
 use crate::astra_net::flatten::LayerFlatten;
@@ -16,57 +16,11 @@ use rand::Rng;
 use tensor::tensor_error::TensorError;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // test_tensors()?;
+    let _ = MSE::new();
+    let _ = TanH::new();
 
     // test_dense()?;
-
-    // test_conv()?;
-
     test_image_rec()?;
-    Ok(())
-}
-
-fn test_tensors() -> Result<(), Box<dyn Error>> {
-    let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
-    let shape = vec![3, 3];
-    let mut tensor = Tensor::from_vec(data.clone(), shape.clone())?;
-    let mut tensor2 = Tensor::from_vec(data, shape)?;
-
-    let sub_shape = vec![2, 2];
-    let sub_tensor = Tensor::zeros(&sub_shape);
-
-    tensor.set_slice(&[(1, 2), (1, 2)], &sub_tensor)?;
-
-    println!("tensor after set_slice: {:#?}", tensor);
-    println!("slice: {:#?}", tensor.slice(&[(1, 2), (1, 2)])?);
-
-    println!("padding:  {:#?}", tensor2.pad(&[(1, 1), (1, 1)])?);
-
-    let shape = vec![5, 5];
-    let mut zero = Tensor::zeros(&shape);
-    let shape = vec![3, 3];
-    let one = Tensor::from_element(1.0, shape);
-    zero.set_slice(&[(1, 3), (1, 3)], &one)?;
-    zero.print_matrix()?;
-
-    let shape = vec![5, 5];
-    let mut zero = Tensor::zeros(&shape);
-    let mut one = Tensor::from_element(1.0, shape);
-
-    let stacked = Tensor::stack(&[zero, one])?;
-
-    println!("{:#?}", stacked);
-
-    stacked
-        .slice(&[(0, 0), (0, 4), (0, 4)])?
-        .reshape(&[5, 5])?
-        .print_matrix()?;
-    println!();
-    stacked
-        .slice(&[(1, 1), (0, 4), (0, 4)])?
-        .reshape(&[5, 5])?
-        .print_matrix()?;
-
     Ok(())
 }
 
@@ -99,7 +53,7 @@ fn test_dense() -> Result<(), Box<dyn Error>> {
         .collect();
 
     for (input, target) in input_data.into_iter().zip(target_data.into_iter()) {
-        my_net.back_propagation(&input, &target);
+        my_net.back_propagation(&input, &target)?;
     }
 
     let test1 = my_net.feed_forward(&Tensor::from_vec(vec![-3.0, -3.0], vec![2])?)?;
@@ -134,10 +88,10 @@ fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, TensorError> {
     let mut data: Vec<Tensor> = Vec::with_capacity(n_samples);
 
     for _ in 0..n_samples / 2 {
-        data.push(Tensor::from_fn(vec![3, 8, 8], || rng.gen_range(0.1..0.3)));
+        data.push(Tensor::from_fn(vec![3, 4, 4], || rng.gen_range(0.1..0.3)));
     }
     for _ in (n_samples / 2)..n_samples {
-        data.push(Tensor::from_fn(vec![3, 8, 8], || rng.gen_range(0.5..0.7)));
+        data.push(Tensor::from_fn(vec![3, 4, 4], || rng.gen_range(0.5..0.7)));
     }
 
     Ok(data)
@@ -158,25 +112,31 @@ fn test_image_rec() -> Result<(), Box<dyn Error>> {
     let s1 = data[0].clone();
     let s2 = data[ns / 2 + 1].clone();
 
-    let mut conv_layer =
-        LayerConv2D::new(vec![8, 8], vec![2, 2], 3, 5, 0, 1, Box::new(Sigmoid::new()));
-    let mut flat_layer = LayerFlatten::new();
-    let mut hidden_layer = LayerDense::new(24, 245, Box::new(LeakyReLU::new(0.3)))?;
-    let mut output_layer = LayerDense::new(2, 24, Box::new(Softmax::new()))?;
+    let conv_layer = LayerConv2D::new(
+        vec![4, 4],
+        vec![2, 2],
+        3,
+        2,
+        0,
+        1,
+        Box::new(LeakyReLU::new(0.1)),
+    );
+    let flat_layer = LayerFlatten::new();
+    let hidden_layer = LayerDense::new(4, 18, Box::new(LeakyReLU::new(0.3)))?;
+    let output_layer = LayerDense::new(2, 4, Box::new(Softmax::new()))?;
 
-    let mut net = Net::new(Box::new(CategoricalCrossEntropy::new()), 0.001);
-    net.set_learning_rate(0.001);
+    let mut net = Net::new(Box::new(CategoricalCrossEntropy::new()), 0.0001);
 
     net.add_layer(Box::new(conv_layer));
     net.add_layer(Box::new(flat_layer));
     net.add_layer(Box::new(hidden_layer));
     net.add_layer(Box::new(output_layer));
 
-    let r1 = net.feed_forward(&s1)?;
-    let r2 = net.feed_forward(&s2)?;
+    // let r1 = net.feed_forward(&s1)?;
+    // let r2 = net.feed_forward(&s2)?;
 
-    println!("r1 pretrain = {:#?}", r1);
-    println!("r2 pretrain = {:#?}", r2);
+    // println!("r1 pretrain = {:#?}", r1);
+    // println!("r2 pretrain = {:#?}", r2);
 
     for (inp, tar) in data.into_iter().zip(targets.into_iter()) {
         net.back_propagation(&inp, &tar)?;

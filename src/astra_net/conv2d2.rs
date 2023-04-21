@@ -3,7 +3,8 @@ use crate::astra_net::layer::Layer;
 use crate::astra_net::net_error::NetError;
 use crate::tensor::Tensor;
 
-use ndarray_rand::rand_distr::{Distribution, Normal};
+use rand::distributions::Uniform;
+use rand::Rng;
 
 pub struct LayerConv2D {
     pub filters: Tensor,
@@ -26,13 +27,8 @@ impl LayerConv2D {
         stride: usize,
         activation: Box<dyn Activation>,
     ) -> Self {
-        let mut rng = rand::thread_rng();
-        let normal = Normal::new(0., 1.0).unwrap();
         Self {
-            filters: Tensor::from_fn(
-                vec![n_filters, n_channels, kernel_shape[0], kernel_shape[1]],
-                || normal.sample(&mut rng),
-            ),
+            filters: Self::xavier_init(&kernel_shape, n_channels, n_filters),
             kernel_shape,
             stride,
             padding,
@@ -41,6 +37,18 @@ impl LayerConv2D {
             input: None,
             output: None,
         }
+    }
+
+    fn xavier_init(kernel_shape: &[usize], n_channels: usize, n_filters: usize) -> Tensor {
+        let mut rng = rand::thread_rng();
+        let scaling_factor = (6.0
+            / (n_channels as f64 + n_filters as f64 + (kernel_shape[0] + kernel_shape[1]) as f64))
+            .sqrt();
+        let uniform_dist = Uniform::from(-scaling_factor..scaling_factor);
+        Tensor::from_fn(
+            vec![n_filters, n_channels, kernel_shape[0], kernel_shape[1]],
+            || rng.sample(uniform_dist),
+        )
     }
 
     fn convolution(&self, input: &Tensor, kernel: &Tensor) -> Result<Tensor, NetError> {
@@ -89,7 +97,11 @@ impl LayerConv2D {
         filter: &Tensor,
     ) -> Result<Tensor, NetError> {
         let input = match self.input.clone() {
-            None => return Err(NetError::CustomError("uninit".to_string())),
+            None => {
+                return Err(NetError::UninitializedLayerParameter(
+                    "self.input".to_string(),
+                ))
+            }
             Some(x) => x,
         };
 
@@ -130,7 +142,6 @@ impl LayerConv2D {
                 }
             }
         }
-
         Ok(gradient)
     }
 
@@ -140,15 +151,15 @@ impl LayerConv2D {
         filter: &Tensor,
         layer_output_cur_filter: &Tensor,
     ) -> Result<Tensor, NetError> {
-        let dL_dO =
+        let d_l_d_o =
             filter_error.to_owned() * self.activation.derive(layer_output_cur_filter.to_owned());
 
-        let dL_dO = dL_dO
+        let d_l_d_o = d_l_d_o
             .clone()
-            .reshape(&[dL_dO.shape[1], dL_dO.shape[2]])
+            .reshape(&[d_l_d_o.shape[1], d_l_d_o.shape[2]])
             .map_err(NetError::TensorBasedError)?;
 
-        let mut dL_dI = Tensor::zeros(&[
+        let mut d_l_d_i = Tensor::zeros(&[
             filter.shape[0],
             layer_output_cur_filter.shape[0],
             layer_output_cur_filter.shape[1],
@@ -163,7 +174,7 @@ impl LayerConv2D {
                 .rotate_180_degrees()
                 .map_err(NetError::TensorBasedError)?;
 
-            let padded_dL_dO = dL_dO
+            let padded_d_l_d_o = d_l_d_o
                 .pad(&[
                     (filter.shape[1] - 1, filter.shape[1] - 1),
                     (filter.shape[2] - 1, filter.shape[2] - 1),
@@ -172,11 +183,11 @@ impl LayerConv2D {
 
             for y in 0..layer_output_cur_filter.shape[0] {
                 for x in 0..layer_output_cur_filter.shape[1] {
-                    let dL_dI_element = dL_dI
+                    let d_l_d_i_element = d_l_d_i
                         .get_element_mut(&[c, y, x])
                         .map_err(NetError::TensorBasedError)?;
 
-                    *dL_dI_element = (padded_dL_dO
+                    *d_l_d_i_element = (padded_d_l_d_o
                         .slice(&[(y, y + filter.shape[1] - 1), (x, x + filter.shape[2] - 1)])
                         .map_err(NetError::TensorBasedError)?
                         .reshape(&[filter.shape[1], filter.shape[2]])
@@ -187,7 +198,7 @@ impl LayerConv2D {
             }
         }
 
-        Ok(dL_dI)
+        Ok(d_l_d_i)
     }
 }
 
@@ -240,9 +251,12 @@ impl Layer for LayerConv2D {
         let mut gradients: Vec<Tensor> = Vec::new();
         let mut prev_layer_errors: Vec<Tensor> = Vec::new();
 
-        let layer_output = self.output.clone().ok_or(NetError::CustomError(
-            "Layer Output not initialized".to_string(),
-        ))?;
+        let layer_output = self
+            .output
+            .clone()
+            .ok_or(NetError::UninitializedLayerParameter(
+                "self.output".to_string(),
+            ))?;
 
         for f_n in 0..self.filters.shape[0] {
             let cur_filter = self
@@ -283,6 +297,8 @@ impl Layer for LayerConv2D {
             )?;
             prev_layer_errors.push(prev_layer_error);
         }
+
+        println!("Conv gradient: {:?}", gradients);
 
         // Update filter weights
         self.filters = self.filters.to_owned()

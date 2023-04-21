@@ -1,5 +1,4 @@
 pub mod activation;
-pub mod conv2d;
 pub mod conv2d2;
 pub mod dense;
 pub mod flatten;
@@ -7,8 +6,7 @@ pub mod layer;
 pub mod loss;
 pub mod net_error;
 
-use crate::astra_net::layer::Layer;
-use crate::astra_net::net_error::NetError;
+use crate::astra_net::{layer::Layer, net_error::NetError};
 use crate::tensor::Tensor;
 use loss::Loss;
 
@@ -57,9 +55,16 @@ impl Net {
             )
             .map_err(NetError::TensorBasedError)?;
 
+        let mut i = self.layers.len() + 1;
+
         for l in self.layers.iter_mut().rev() {
-            println!(" ERR {:#?}", error);
+            i -= 1;
+            println!("ERR at layer {}: {:?}", i, error);
             error = l.back_propagation(error, 0.01)?;
+
+            if error.to_vec().into_iter().any(|n| n.is_nan() || n > 15.0) {
+                panic!("ERROR CONTAINS NAN")
+            }
         }
         Ok(())
     }

@@ -23,8 +23,8 @@ impl Layer for LayerFlatten {
 
     fn back_propagation(&mut self, error: Tensor, _learning_rate: f64) -> Result<Tensor, NetError> {
         match self.input_shape.to_owned() {
-            None => Err(NetError::CustomError(
-                "back prop called without feed forward on flat layer".to_string(),
+            None => Err(NetError::UninitializedLayerParameter(
+                "self.input_shape".to_string(),
             )),
             Some(shape) => Ok(error.reshape(&shape).map_err(NetError::TensorBasedError)?),
         }

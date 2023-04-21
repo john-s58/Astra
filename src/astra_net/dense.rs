@@ -39,7 +39,7 @@ impl LayerDense {
 
 impl Layer for LayerDense {
     fn feed_forward(&mut self, inputs: &Tensor) -> Result<Tensor, NetError> {
-        self.input = Some(inputs.to_owned());
+        self.input = Some(inputs.clone());
 
         if inputs.len() != self.weights.shape[0] {
             return Err(NetError::BadInputShape);
@@ -94,8 +94,12 @@ impl Layer for LayerDense {
             .map_err(NetError::TensorBasedError)?;
         let delta_biases = err.sum() / err.len() as f64;
 
+        println!("Dense gradient: {:?}", delta_weights);
+
         self.weights = self.weights.clone() - (delta_weights * learning_rate);
         self.biases = self.biases.clone() - (delta_biases * learning_rate);
+
+        
 
         err.dot(
             &self
