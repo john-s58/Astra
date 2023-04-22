@@ -298,8 +298,6 @@ impl Layer for LayerConv2D {
             prev_layer_errors.push(prev_layer_error);
         }
 
-        println!("Conv gradient: {:?}", gradients);
-
         // Update filter weights
         self.filters = self.filters.to_owned()
             - (Tensor::stack(&gradients).map_err(NetError::TensorBasedError)? * learning_rate);

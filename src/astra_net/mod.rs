@@ -55,16 +55,8 @@ impl Net {
             )
             .map_err(NetError::TensorBasedError)?;
 
-        let mut i = self.layers.len() + 1;
-
         for l in self.layers.iter_mut().rev() {
-            i -= 1;
-            println!("ERR at layer {}: {:?}", i, error);
             error = l.back_propagation(error, 0.01)?;
-
-            if error.to_vec().into_iter().any(|n| n.is_nan() || n > 15.0) {
-                panic!("ERROR CONTAINS NAN")
-            }
         }
         Ok(())
     }

@@ -78,7 +78,9 @@ impl Layer for LayerDense {
         let input_mat = self
             .input
             .clone()
-            .unwrap()
+            .ok_or(NetError::UninitializedLayerParameter(
+                "self.input".to_string(),
+            ))?
             .reshape(&[1, self.input.clone().unwrap().len()])
             .map_err(NetError::TensorBasedError)?;
 
@@ -94,12 +96,8 @@ impl Layer for LayerDense {
             .map_err(NetError::TensorBasedError)?;
         let delta_biases = err.sum() / err.len() as f64;
 
-        println!("Dense gradient: {:?}", delta_weights);
-
         self.weights = self.weights.clone() - (delta_weights * learning_rate);
         self.biases = self.biases.clone() - (delta_biases * learning_rate);
-
-        
 
         err.dot(
             &self

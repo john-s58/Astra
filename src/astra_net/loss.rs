@@ -31,7 +31,7 @@ impl Loss for MSE {
             .zip(target.to_vec().into_iter())
             .map(|(a, b)| (a - b) * (a - b))
             .sum::<f64>()
-            / 3.)
+            / target.len() as f64)
     }
     fn get_output_layer_error(
         &self,
@@ -41,15 +41,7 @@ impl Loss for MSE {
         if output.shape != target.shape {
             return Err(TensorError::ShapeMismatchBetweenTensors);
         }
-        Tensor::from_vec(
-            output
-                .to_vec()
-                .into_iter()
-                .zip(target.to_vec().into_iter())
-                .map(|(a, b)| ((a - b) * (a - b)) / 3.)
-                .collect(),
-            output.shape.to_owned(),
-        )
+        Ok((output.to_owned() - target.to_owned()) * 2.0 / output.len() as f64)
     }
 }
 
@@ -81,14 +73,7 @@ impl Loss for CategoricalCrossEntropy {
         if output.shape != target.shape {
             return Err(TensorError::ShapeMismatchBetweenTensors);
         }
-        Tensor::from_vec(
-            output
-                .to_vec()
-                .into_iter()
-                .zip(target.to_vec().into_iter())
-                .map(|(a, b)| -(a + (b + EPSILON).ln()))
-                .collect(),
-            output.shape.to_owned(),
-        )
+        Ok((output.to_owned() - target.to_owned())
+            / (output.to_owned() * output.to_owned().map(|x| 1.0 - x)))
     }
 }

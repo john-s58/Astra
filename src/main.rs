@@ -98,7 +98,7 @@ fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, TensorError> {
 }
 
 fn test_image_rec() -> Result<(), Box<dyn Error>> {
-    let ns = 50;
+    let ns = 130;
 
     let data = generate_image_data(ns)?;
     let mut targets: Vec<Tensor> = Vec::with_capacity(ns);
@@ -132,11 +132,11 @@ fn test_image_rec() -> Result<(), Box<dyn Error>> {
     net.add_layer(Box::new(hidden_layer));
     net.add_layer(Box::new(output_layer));
 
-    // let r1 = net.feed_forward(&s1)?;
-    // let r2 = net.feed_forward(&s2)?;
+    let r1 = net.feed_forward(&s1)?;
+    let r2 = net.feed_forward(&s2)?;
 
-    // println!("r1 pretrain = {:#?}", r1);
-    // println!("r2 pretrain = {:#?}", r2);
+    println!("r1 pretrain = {:#?}", r1);
+    println!("r2 pretrain = {:#?}", r2);
 
     for (inp, tar) in data.into_iter().zip(targets.into_iter()) {
         net.back_propagation(&inp, &tar)?;
