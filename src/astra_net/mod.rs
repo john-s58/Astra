@@ -14,14 +14,16 @@ pub struct Net {
     layers: Vec<Box<dyn Layer>>,
     learning_rate: f64,
     loss: Box<dyn Loss>,
+    clipping_value: Option<f64>,
 }
 
 impl Net {
-    pub fn new(loss: Box<dyn Loss>, learning_rate: f64) -> Self {
+    pub fn new(loss: Box<dyn Loss>, learning_rate: f64, clipping_value: Option<f64>) -> Self {
         Self {
             layers: Vec::new(),
             learning_rate,
             loss,
+            clipping_value,
         }
     }
 
@@ -56,7 +58,15 @@ impl Net {
             .map_err(NetError::TensorBasedError)?;
 
         for l in self.layers.iter_mut().rev() {
-            error = l.back_propagation(error, 0.01)?;
+            error = l.back_propagation(error, self.learning_rate, self.clipping_value)?;
+            // println!("ERR: {:?}", error);
+            if error
+                .clone()
+                .into_iter()
+                .any(|x| x.is_nan() || x.is_infinite())
+            {
+                panic!()
+            }
         }
         Ok(())
     }

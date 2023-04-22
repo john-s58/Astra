@@ -247,7 +247,12 @@ impl Layer for LayerConv2D {
         Ok(layer_result)
     }
 
-    fn back_propagation(&mut self, error: Tensor, learning_rate: f64) -> Result<Tensor, NetError> {
+    fn back_propagation(
+        &mut self,
+        error: Tensor,
+        learning_rate: f64,
+        clipping_value: Option<f64>,
+    ) -> Result<Tensor, NetError> {
         let mut gradients: Vec<Tensor> = Vec::new();
         let mut prev_layer_errors: Vec<Tensor> = Vec::new();
 
@@ -299,8 +304,13 @@ impl Layer for LayerConv2D {
         }
 
         // Update filter weights
-        self.filters = self.filters.to_owned()
-            - (Tensor::stack(&gradients).map_err(NetError::TensorBasedError)? * learning_rate);
+        let gradients_stacked = match clipping_value {
+            None => Tensor::stack(&gradients).map_err(NetError::TensorBasedError)?,
+            Some(v) => Tensor::stack(&gradients)
+                .map_err(NetError::TensorBasedError)?
+                .clip(v),
+        };
+        self.filters = self.filters.to_owned() - (gradients_stacked * learning_rate);
 
         // Sum errors for the previous layer
         let prev_layer_error_sum = prev_layer_errors

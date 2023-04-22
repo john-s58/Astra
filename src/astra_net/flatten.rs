@@ -21,7 +21,12 @@ impl Layer for LayerFlatten {
             .map_err(NetError::TensorBasedError)
     }
 
-    fn back_propagation(&mut self, error: Tensor, _learning_rate: f64) -> Result<Tensor, NetError> {
+    fn back_propagation(
+        &mut self,
+        error: Tensor,
+        _learning_rate: f64,
+        _clipping_value: Option<f64>,
+    ) -> Result<Tensor, NetError> {
         match self.input_shape.to_owned() {
             None => Err(NetError::UninitializedLayerParameter(
                 "self.input_shape".to_string(),

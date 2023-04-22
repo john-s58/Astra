@@ -31,7 +31,7 @@ fn test_dense() -> Result<(), Box<dyn Error>> {
     let l4 = Box::new(LayerDense::new(6, 12, Box::new(LeakyReLU::new(0.1)))?);
     let lend = Box::new(LayerDense::new(2, 6, Box::new(Softmax::new()))?);
 
-    let mut my_net = Net::new(Box::new(MSE::new()), 0.001);
+    let mut my_net = Net::new(Box::new(MSE::new()), 0.001, Some(1.0));
     my_net.set_learning_rate(0.001);
 
     my_net.add_layer(l1);
@@ -88,17 +88,17 @@ fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, TensorError> {
     let mut data: Vec<Tensor> = Vec::with_capacity(n_samples);
 
     for _ in 0..n_samples / 2 {
-        data.push(Tensor::from_fn(vec![3, 4, 4], || rng.gen_range(0.1..0.3)));
+        data.push(Tensor::from_fn(vec![3, 4, 4], || rng.gen_range(0.0..0.5)));
     }
     for _ in (n_samples / 2)..n_samples {
-        data.push(Tensor::from_fn(vec![3, 4, 4], || rng.gen_range(0.5..0.7)));
+        data.push(Tensor::from_fn(vec![3, 4, 4], || rng.gen_range(3.0..3.5)));
     }
 
     Ok(data)
 }
 
 fn test_image_rec() -> Result<(), Box<dyn Error>> {
-    let ns = 130;
+    let ns = 5000;
 
     let data = generate_image_data(ns)?;
     let mut targets: Vec<Tensor> = Vec::with_capacity(ns);
@@ -125,7 +125,7 @@ fn test_image_rec() -> Result<(), Box<dyn Error>> {
     let hidden_layer = LayerDense::new(4, 18, Box::new(LeakyReLU::new(0.3)))?;
     let output_layer = LayerDense::new(2, 4, Box::new(Softmax::new()))?;
 
-    let mut net = Net::new(Box::new(CategoricalCrossEntropy::new()), 0.0001);
+    let mut net = Net::new(Box::new(CategoricalCrossEntropy::new()), 0.0001, Some(1.0));
 
     net.add_layer(Box::new(conv_layer));
     net.add_layer(Box::new(flat_layer));

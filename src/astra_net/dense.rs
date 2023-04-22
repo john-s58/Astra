@@ -66,7 +66,12 @@ impl Layer for LayerDense {
         Ok(self.output.clone().unwrap())
     }
 
-    fn back_propagation(&mut self, error: Tensor, learning_rate: f64) -> Result<Tensor, NetError> {
+    fn back_propagation(
+        &mut self,
+        error: Tensor,
+        learning_rate: f64,
+        clipping_value: Option<f64>,
+    ) -> Result<Tensor, NetError> {
         let delta_output = self.activation.derive(self.output.clone().unwrap());
 
         let err = error
@@ -89,11 +94,20 @@ impl Layer for LayerDense {
             .reshape(&[1, err.len()])
             .map_err(NetError::TensorBasedError)?;
 
-        let delta_weights = input_mat
-            .transpose()
-            .map_err(NetError::TensorBasedError)?
-            .dot(&err_mat)
-            .map_err(NetError::TensorBasedError)?;
+        let delta_weights = match clipping_value {
+            None => input_mat
+                .transpose()
+                .map_err(NetError::TensorBasedError)?
+                .dot(&err_mat)
+                .map_err(NetError::TensorBasedError)?,
+            Some(v) => input_mat
+                .transpose()
+                .map_err(NetError::TensorBasedError)?
+                .dot(&err_mat)
+                .map_err(NetError::TensorBasedError)?
+                .clip(v),
+        };
+
         let delta_biases = err.sum() / err.len() as f64;
 
         self.weights = self.weights.clone() - (delta_weights * learning_rate);

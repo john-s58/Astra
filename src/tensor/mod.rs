@@ -590,6 +590,10 @@ impl Tensor {
 
         Ok(rotated)
     }
+
+    pub fn clip(self, mx: f64) -> Self {
+        self.map(|x| x.min(mx).max(-mx))
+    }
 }
 
 impl std::ops::Mul<Tensor> for f64 {
