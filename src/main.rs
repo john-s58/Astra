@@ -119,13 +119,13 @@ fn test_image_rec() -> Result<(), Box<dyn Error>> {
         2,
         0,
         1,
-        Box::new(LeakyReLU::new(0.1)),
+        Box::new(LeakyReLU::new(0.3)),
     );
     let flat_layer = LayerFlatten::new();
-    let hidden_layer = LayerDense::new(4, 18, Box::new(LeakyReLU::new(0.3)))?;
-    let output_layer = LayerDense::new(2, 4, Box::new(Softmax::new()))?;
+    let hidden_layer = LayerDense::new(6, 18, Box::new(LeakyReLU::new(0.3)))?;
+    let output_layer = LayerDense::new(2, 6, Box::new(Softmax::new()))?;
 
-    let mut net = Net::new(Box::new(CategoricalCrossEntropy::new()), 0.0001, Some(1.0));
+    let mut net = Net::new(Box::new(CategoricalCrossEntropy::new()), 0.0001, Some(3.0));
 
     net.add_layer(Box::new(conv_layer));
     net.add_layer(Box::new(flat_layer));
