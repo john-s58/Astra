@@ -8,6 +8,8 @@ need to add optimizers
 need to add ability to save and load models
 
 ### Goals:
+- [ ] Optimizers
+    - [ ] ADAM
 - [ ] Conv2d trained, with 90% accuracy by *05/10/2023*
 - [ ] Tests
     - [ ] Tensor: transpose, qr, lu, reshape, slice, set slice, get column, set column, dot, norm, pad, rotate
