@@ -13,5 +13,8 @@ current code quality raised to "production level" - decoupling, optimized, clean
 
 
 ### Longer Distance Goals:
-add macros for tensor, layers, net
+- [ ] add macros
+    - [ ] tensor 
+    - [ ] layers
+    - [ ] net
 add statistics and machine learning algorithms
