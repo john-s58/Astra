@@ -8,7 +8,7 @@ need to add optimizers
 need to add ability to save and load models
 
 ### Goals:
-working conv2d net by 05/10/2023
+- [ ] working conv2d net by 05/10/2023
 current code quality raised to "production level" - decoupling, optimized, clean, tests
 
 
