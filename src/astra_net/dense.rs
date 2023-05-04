@@ -72,13 +72,13 @@ impl Layer for LayerDense {
         learning_rate: f64,
         clipping_value: Option<f64>,
     ) -> Result<Tensor, NetError> {
-        let delta_output = self.activation.derive(self.output.clone().unwrap());
+        let d_out_d_z = self.activation.derive(self.output.clone().unwrap());
 
         let err = error
             .clone()
             .reshape(&[1, error.len()])
             .map_err(NetError::TensorBasedError)?
-            * delta_output;
+            * d_out_d_z;
 
         let input_mat = self
             .input
