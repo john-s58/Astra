@@ -1,25 +1,24 @@
 use std::error::Error;
 
 use crate::astra_net::activation::{LeakyReLU, Sigmoid, Softmax, TanH};
-use crate::astra_net::conv2d2::LayerConv2D;
+use crate::astra_net::conv2d3::{LayerConv2D, Padding};
 use crate::astra_net::dense::LayerDense;
 use crate::astra_net::flatten::LayerFlatten;
-use crate::astra_net::Net;
-// use crate::mutating::net::MutatingNet;
 use crate::astra_net::loss::{CategoricalCrossEntropy, MSE};
+use crate::astra_net::Net;
+use crate::error::AstraError;
 use crate::tensor::Tensor;
 
 mod astra_net;
-// mod mutating;
+mod error;
 mod tensor;
 use rand::Rng;
-use tensor::tensor_error::TensorError;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let _ = MSE::new();
     let _ = TanH::new();
 
-    // test_dense()?;
+    //test_dense()?;
     test_image_rec()?;
     Ok(())
 }
@@ -83,7 +82,7 @@ fn generate_2d_cluster_dataset(num_samples: usize) -> Vec<Tensor> {
     data
 }
 
-fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, TensorError> {
+fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, AstraError> {
     let mut rng = rand::thread_rng();
     let mut data: Vec<Tensor> = Vec::with_capacity(n_samples);
 
@@ -98,7 +97,7 @@ fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, TensorError> {
 }
 
 fn test_image_rec() -> Result<(), Box<dyn Error>> {
-    let ns = 5000;
+    let ns = 50;
 
     let data = generate_image_data(ns)?;
     let mut targets: Vec<Tensor> = Vec::with_capacity(ns);
@@ -117,8 +116,8 @@ fn test_image_rec() -> Result<(), Box<dyn Error>> {
         vec![2, 2],
         3,
         2,
-        0,
-        1,
+        Padding::Valid,
+        (1, 1),
         Box::new(LeakyReLU::new(0.3)),
     );
     let flat_layer = LayerFlatten::new();

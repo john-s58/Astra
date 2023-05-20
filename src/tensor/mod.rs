@@ -1,5 +1,3 @@
-pub mod tensor_error;
-
 #[derive(Clone, Debug)]
 pub struct Tensor {
     pub data: Vec<f64>,
@@ -7,10 +5,10 @@ pub struct Tensor {
     pub ndim: usize,
 }
 
-use std::f64;
 use std::f64::EPSILON;
 
-use self::tensor_error::TensorError;
+//use self::tensor_error::AstraError;
+use crate::error::AstraError;
 
 // row first [3, 4] -> 3 rows 4 columns
 // [2, 3, 4] -> 2 instances of 3 rows and 4 columns
@@ -23,12 +21,12 @@ impl Tensor {
         }
     }
 
-    pub fn from_vec(data: Vec<f64>, shape: Vec<usize>) -> Result<Self, TensorError> {
+    pub fn from_vec(data: Vec<f64>, shape: Vec<usize>) -> Result<Self, AstraError> {
         if shape.contains(&0) {
-            return Err(TensorError::ZeroInShape);
+            return Err(AstraError::ZeroInShape);
         }
         if data.len() != shape.iter().product() {
-            return Err(TensorError::ShapeDataMismatch);
+            return Err(AstraError::ShapeDataMismatch);
         }
 
         Ok(Self {
@@ -57,15 +55,15 @@ impl Tensor {
         }
     }
 
-    pub fn reshape(self, new_shape: &[usize]) -> Result<Self, TensorError> {
+    pub fn reshape(self, new_shape: &[usize]) -> Result<Self, AstraError> {
         if new_shape.contains(&0) {
-            return Err(TensorError::ZeroInShape);
+            return Err(AstraError::ZeroInShape);
         }
 
         if self.shape.clone().into_iter().reduce(|a, b| a * b).unwrap()
             != new_shape.iter().copied().reduce(|a, b| a * b).unwrap()
         {
-            return Err(TensorError::ShapeDataMismatch);
+            return Err(AstraError::ShapeDataMismatch);
         }
         let ndim = new_shape.len();
         Ok(Self {
@@ -75,9 +73,9 @@ impl Tensor {
         })
     }
 
-    pub fn identity(shape: Vec<usize>) -> Result<Self, TensorError> {
+    pub fn identity(shape: Vec<usize>) -> Result<Self, AstraError> {
         if !shape.windows(2).all(|w| w[0] == w[1]) {
-            return Err(TensorError::NonSquareMatrix);
+            return Err(AstraError::NonSquareMatrix);
         }
         let ndim = shape.len();
         let elem_size = shape[0];
@@ -88,9 +86,9 @@ impl Tensor {
         Ok(res)
     }
 
-    pub fn matrix(m: usize, n: usize, data: Vec<f64>) -> Result<Self, TensorError> {
+    pub fn matrix(m: usize, n: usize, data: Vec<f64>) -> Result<Self, AstraError> {
         match m * n == data.len() {
-            false => Err(TensorError::ShapeDataMismatch),
+            false => Err(AstraError::ShapeDataMismatch),
             true => Ok(Self {
                 data,
                 shape: vec![m, n],
@@ -110,9 +108,9 @@ impl Tensor {
         }
     }
 
-    pub fn transpose(&self) -> Result<Self, TensorError> {
+    pub fn transpose(&self) -> Result<Self, AstraError> {
         match self.ndim {
-            0 => Err(TensorError::EmptyTensor),
+            0 => Err(AstraError::EmptyTensor),
             1 => Ok(self.to_owned().reshape(&[1, self.shape[0]])?),
             2 => {
                 let mut transposed = self.to_owned();
@@ -125,11 +123,11 @@ impl Tensor {
                 }
                 Ok(transposed)
             }
-            _ => Err(TensorError::UnsupportedDimension),
+            _ => Err(AstraError::UnsupportedDimension),
         }
     }
 
-    pub fn get_index(&self, indices: &[usize]) -> Result<usize, TensorError> {
+    pub fn get_index(&self, indices: &[usize]) -> Result<usize, AstraError> {
         let mut index = 0;
         let mut stride = 1;
         for i in 0..self.shape.len() {
@@ -137,14 +135,14 @@ impl Tensor {
             stride *= self.shape[i];
         }
         if index > self.len() - 1 {
-            return Err(TensorError::OutOfBounds);
+            return Err(AstraError::OutOfBounds);
         }
         Ok(index)
     }
 
-    pub fn get_indices(&self, index: usize) -> Result<Vec<usize>, TensorError> {
+    pub fn get_indices(&self, index: usize) -> Result<Vec<usize>, AstraError> {
         if index >= self.data.len() {
-            return Err(TensorError::OutOfBounds);
+            return Err(AstraError::OutOfBounds);
         }
 
         let mut indices = vec![0; self.shape.len()];
@@ -159,17 +157,17 @@ impl Tensor {
         Ok(indices)
     }
 
-    pub fn get_element(&self, indices: &[usize]) -> Result<&f64, TensorError> {
+    pub fn get_element(&self, indices: &[usize]) -> Result<&f64, AstraError> {
         let index = self.get_index(indices)?;
         Ok(self.data.get(index).unwrap())
     }
 
-    pub fn get_element_mut(&mut self, indices: &[usize]) -> Result<&mut f64, TensorError> {
+    pub fn get_element_mut(&mut self, indices: &[usize]) -> Result<&mut f64, AstraError> {
         let index = self.get_index(indices)?;
         Ok(self.data.get_mut(index).unwrap())
     }
 
-    pub fn set_element(&mut self, indices: &[usize], value: f64) -> Result<(), TensorError> {
+    pub fn set_element(&mut self, indices: &[usize], value: f64) -> Result<(), AstraError> {
         *self.get_element_mut(indices)? = value;
         Ok(())
     }
@@ -189,12 +187,12 @@ impl Tensor {
         self.data.clone().into_iter().sum()
     }
 
-    pub fn dot(&self, other: &Self) -> Result<Self, TensorError> {
+    pub fn dot(&self, other: &Self) -> Result<Self, AstraError> {
         if self.shape.len() != 2 || other.shape.len() != 2 {
-            return Err(TensorError::UnsupportedDimension);
+            return Err(AstraError::UnsupportedDimension);
         }
         if self.shape[1] != other.shape[0] {
-            return Err(TensorError::DimensionsMismatchForDotOperation);
+            return Err(AstraError::ShapeMismatchBetweenTensors);
         }
         let mut result = Tensor::from_element(0.0, vec![self.shape[0], other.shape[1]]);
 
@@ -211,12 +209,12 @@ impl Tensor {
         Ok(result)
     }
 
-    pub fn lu_decomposition(&self) -> Result<(Self, Self), TensorError> {
+    pub fn lu_decomposition(&self) -> Result<(Self, Self), AstraError> {
         if self.ndim != 2 {
-            return Err(TensorError::UnsupportedDimension);
+            return Err(AstraError::UnsupportedDimension);
         }
         if self.shape[0] != self.shape[1] {
-            return Err(TensorError::NonSquareMatrix);
+            return Err(AstraError::NonSquareMatrix);
         }
 
         let n = self.shape[0];
@@ -244,7 +242,7 @@ impl Tensor {
                     }
 
                     if u.get_element(&[i, i]).unwrap().abs() < EPSILON {
-                        return Err(TensorError::CustomError(
+                        return Err(AstraError::CustomError(
                             format!("LU Decomposition failed due element at indices [{:?}, {:?}] >= EPSILON", i, i)
                             ));
                     }
@@ -258,7 +256,7 @@ impl Tensor {
         Ok((l, u))
     }
 
-    pub fn norm(&self) -> Result<f64, TensorError> {
+    pub fn norm(&self) -> Result<f64, AstraError> {
         match self.ndim {
             1 => {
                 let mut sum = 0.0;
@@ -279,13 +277,13 @@ impl Tensor {
                 }
                 Ok(sum.sqrt())
             }
-            _ => Err(TensorError::UnsupportedDimension),
+            _ => Err(AstraError::UnsupportedDimension),
         }
     }
 
-    pub fn qr(&self) -> Result<(Tensor, Tensor), TensorError> {
+    pub fn qr(&self) -> Result<(Tensor, Tensor), AstraError> {
         if self.ndim != 2 {
-            return Err(TensorError::UnsupportedDimension);
+            return Err(AstraError::UnsupportedDimension);
         }
 
         let rows = self.shape[0];
@@ -343,19 +341,19 @@ impl Tensor {
         &self,
         left_corner: &[usize],
         shape: &[usize],
-    ) -> Result<Self, TensorError> {
+    ) -> Result<Self, AstraError> {
         if self.ndim != 2 {
-            return Err(TensorError::UnsupportedDimension);
+            return Err(AstraError::UnsupportedDimension);
         }
         if left_corner.len() != 2 || shape.len() != 2 {
-            return Err(TensorError::UnsupportedDimension);
+            return Err(AstraError::UnsupportedDimension);
         }
 
         let (left_corner_i, left_corner_j) = (left_corner[0], left_corner[1]);
         let (shape_i, shape_j) = (shape[0], shape[1]);
 
         if left_corner_i + shape_i > self.shape[0] || left_corner_j + shape_j > self.shape[1] {
-            return Err(TensorError::CustomError(
+            return Err(AstraError::CustomError(
                 "sub matrix dimensions larger than original matrix".to_string(),
             ));
         }
@@ -379,9 +377,9 @@ impl Tensor {
         &mut self,
         ranges: &[(usize, usize)],
         source: &Self,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), AstraError> {
         if self.ndim < source.ndim || self.ndim != ranges.len() {
-            return Err(TensorError::CustomError(
+            return Err(AstraError::CustomError(
                 "dimensions error with self, source and ranges".to_string(),
             ));
         }
@@ -394,14 +392,14 @@ impl Tensor {
             .collect();
 
         if target_dims.len() != source.ndim {
-            return Err(TensorError::CustomError(
+            return Err(AstraError::CustomError(
                 "source dimensions mismatch with non-single-value ranges".to_string(),
             ));
         }
 
         for (dim, &target_dim) in target_dims.iter().enumerate() {
             if (ranges[target_dim].1 - ranges[target_dim].0) + 1 != source.shape[dim] {
-                return Err(TensorError::CustomError(
+                return Err(AstraError::CustomError(
                     "slice shape different from source shape".to_string(),
                 ));
             }
@@ -449,9 +447,9 @@ impl Tensor {
         }
     }
 
-    pub fn slice(&self, ranges: &[(usize, usize)]) -> Result<Self, TensorError> {
+    pub fn slice(&self, ranges: &[(usize, usize)]) -> Result<Self, AstraError> {
         if self.ndim != ranges.len() {
-            return Err(TensorError::ShapeMismatchBetweenTensors);
+            return Err(AstraError::ShapeMismatchBetweenTensors);
         }
 
         let new_shape: Vec<usize> = ranges.iter().map(|r| r.1 - r.0 + 1).collect();
@@ -488,9 +486,9 @@ impl Tensor {
         }
     }
 
-    pub fn pad(&self, padding: &[(usize, usize)]) -> Result<Self, TensorError> {
+    pub fn pad(&self, padding: &[(usize, usize)]) -> Result<Self, AstraError> {
         if self.ndim != padding.len() {
-            return Err(TensorError::ShapeMismatchBetweenTensors);
+            return Err(AstraError::ShapeMismatchBetweenTensors);
         }
         let new_shape: Vec<usize> = self
             .shape
@@ -513,9 +511,9 @@ impl Tensor {
         Ok(padded)
     }
 
-    pub fn print_matrix(&self) -> Result<(), TensorError> {
+    pub fn print_matrix(&self) -> Result<(), AstraError> {
         if self.ndim != 2 {
-            return Err(TensorError::UnsupportedDimension);
+            return Err(AstraError::UnsupportedDimension);
         }
 
         let mut index = 0;
@@ -529,10 +527,10 @@ impl Tensor {
         Ok(())
     }
 
-    pub fn stack(tensors: &[Self]) -> Result<Self, TensorError> {
+    pub fn stack(tensors: &[Self]) -> Result<Self, AstraError> {
         let base_shape = tensors[0].shape.clone();
         if tensors.iter().any(|t| t.shape != base_shape) {
-            return Err(TensorError::ShapeMismatchBetweenTensors);
+            return Err(AstraError::ShapeMismatchBetweenTensors);
         }
         let n_tensors = tensors.len();
 
@@ -553,9 +551,9 @@ impl Tensor {
         Ok(stacked)
     }
 
-    pub fn rotate_90_degrees(&self) -> Result<Self, TensorError> {
+    pub fn rotate_90_degrees(&self) -> Result<Self, AstraError> {
         if self.ndim != 2 {
-            return Err(TensorError::UnsupportedDimension);
+            return Err(AstraError::UnsupportedDimension);
         }
 
         let (rows, cols) = (self.shape[0], self.shape[1]);
@@ -571,9 +569,9 @@ impl Tensor {
         Ok(rotated)
     }
 
-    pub fn rotate_180_degrees(&self) -> Result<Self, TensorError> {
+    pub fn rotate_180_degrees(&self) -> Result<Self, AstraError> {
         if self.ndim != 2 {
-            return Err(TensorError::UnsupportedDimension);
+            return Err(AstraError::UnsupportedDimension);
         }
 
         let (rows, cols) = (self.shape[0], self.shape[1]);
@@ -798,7 +796,7 @@ impl Default for Tensor {
 //     dest: &mut Tensor,
 //     index: &mut Vec<usize>,
 //     dim: usize,
-// ) -> Result<(), TensorError> {
+// ) -> Result<(), AstraError> {
 //     if dim == self.ndim {
 //         if let Some(value) = self.get_element(index)? {
 //             dest.set_element(index, *value);

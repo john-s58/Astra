@@ -1,15 +1,15 @@
-use crate::tensor::tensor_error::TensorError;
+use crate::error::AstraError;
 use crate::tensor::Tensor;
 
 use std::f64::EPSILON;
 
 pub trait Loss {
-    fn calculate(&self, output: &Tensor, target: &Tensor) -> Result<f64, TensorError>;
+    fn calculate(&self, output: &Tensor, target: &Tensor) -> Result<f64, AstraError>;
     fn get_output_layer_error(
         &self,
         output: &Tensor,
         target: &Tensor,
-    ) -> Result<Tensor, TensorError>;
+    ) -> Result<Tensor, AstraError>;
 }
 
 pub struct MSE;
@@ -21,9 +21,9 @@ impl MSE {
 }
 
 impl Loss for MSE {
-    fn calculate(&self, output: &Tensor, target: &Tensor) -> Result<f64, TensorError> {
+    fn calculate(&self, output: &Tensor, target: &Tensor) -> Result<f64, AstraError> {
         if output.shape != target.shape {
-            return Err(TensorError::ShapeMismatchBetweenTensors);
+            return Err(AstraError::ShapeMismatchBetweenTensors);
         }
         Ok(output
             .to_vec()
@@ -37,9 +37,9 @@ impl Loss for MSE {
         &self,
         output: &Tensor,
         target: &Tensor,
-    ) -> Result<Tensor, TensorError> {
+    ) -> Result<Tensor, AstraError> {
         if output.shape != target.shape {
-            return Err(TensorError::ShapeMismatchBetweenTensors);
+            return Err(AstraError::ShapeMismatchBetweenTensors);
         }
         Ok((output.to_owned() - target.to_owned()) * 2.0 / output.len() as f64)
     }
@@ -54,9 +54,9 @@ impl CategoricalCrossEntropy {
 }
 
 impl Loss for CategoricalCrossEntropy {
-    fn calculate(&self, output: &Tensor, target: &Tensor) -> Result<f64, TensorError> {
+    fn calculate(&self, output: &Tensor, target: &Tensor) -> Result<f64, AstraError> {
         if output.shape != target.shape {
-            return Err(TensorError::ShapeMismatchBetweenTensors);
+            return Err(AstraError::ShapeMismatchBetweenTensors);
         }
         Ok(output
             .to_vec()
@@ -69,9 +69,9 @@ impl Loss for CategoricalCrossEntropy {
         &self,
         output: &Tensor,
         target: &Tensor,
-    ) -> Result<Tensor, TensorError> {
+    ) -> Result<Tensor, AstraError> {
         if output.shape != target.shape {
-            return Err(TensorError::ShapeMismatchBetweenTensors);
+            return Err(AstraError::ShapeMismatchBetweenTensors);
         }
         Ok((output.to_owned() - target.to_owned())
             / (output.to_owned() * output.to_owned().map(|x| 1.0 - x)))

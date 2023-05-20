@@ -1,5 +1,5 @@
 use crate::astra_net::layer::Layer;
-use crate::astra_net::net_error::NetError;
+use crate::error::AstraError;
 use crate::tensor::Tensor;
 
 pub struct LayerFlatten {
@@ -13,12 +13,9 @@ impl LayerFlatten {
 }
 
 impl Layer for LayerFlatten {
-    fn feed_forward(&mut self, inputs: &Tensor) -> Result<Tensor, NetError> {
+    fn feed_forward(&mut self, inputs: &Tensor) -> Result<Tensor, AstraError> {
         self.input_shape = Some(inputs.shape.to_owned());
-        inputs
-            .to_owned()
-            .reshape(&[inputs.len()])
-            .map_err(NetError::TensorBasedError)
+        inputs.to_owned().reshape(&[inputs.len()])
     }
 
     fn back_propagation(
@@ -26,12 +23,12 @@ impl Layer for LayerFlatten {
         error: Tensor,
         _learning_rate: f64,
         _clipping_value: Option<f64>,
-    ) -> Result<Tensor, NetError> {
+    ) -> Result<Tensor, AstraError> {
         match self.input_shape.to_owned() {
-            None => Err(NetError::UninitializedLayerParameter(
+            None => Err(AstraError::UninitializedLayerParameter(
                 "self.input_shape".to_string(),
             )),
-            Some(shape) => Ok(error.reshape(&shape).map_err(NetError::TensorBasedError)?),
+            Some(shape) => Ok(error.reshape(&shape)?),
         }
     }
 }

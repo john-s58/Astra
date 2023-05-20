@@ -1,6 +1,6 @@
 use crate::astra_net::activation::Activation;
 use crate::astra_net::layer::Layer;
-use crate::astra_net::net_error::NetError;
+use crate::error::AstraError;
 use crate::tensor::Tensor;
 
 use rand::distributions::Uniform;
@@ -51,9 +51,9 @@ impl LayerConv2D {
         )
     }
 
-    fn convolution(&self, input: &Tensor, kernel: &Tensor) -> Result<Tensor, NetError> {
+    fn convolution(&self, input: &Tensor, kernel: &Tensor) -> Result<Tensor, AstraError> {
         if input.ndim != 2 || kernel.ndim != 2 {
-            return Err(NetError::BadInputShape);
+            return Err(AstraError::BadInputShape);
         }
 
         let (img_height, img_width) = (input.shape[0], input.shape[1]);
@@ -70,8 +70,7 @@ impl LayerConv2D {
             0 => {}
             _ => {
                 padded_image = padded_image
-                    .pad(&[(self.padding, self.padding), (self.padding, self.padding)])
-                    .map_err(NetError::TensorBasedError)?
+                    .pad(&[(self.padding, self.padding), (self.padding, self.padding)])?
             }
         }
         for y in 0..output_height {
@@ -79,11 +78,8 @@ impl LayerConv2D {
                 let (y_start, y_end) = (y * self.stride, y * self.stride + kernel_height - 1);
                 let (x_start, x_end) = (x * self.stride, x * self.stride + kernel_width - 1);
 
-                *(output
-                    .get_element_mut(&[y, x])
-                    .map_err(NetError::TensorBasedError)?) = (padded_image
-                    .slice(&[(y_start, y_end), (x_start, x_end)])
-                    .map_err(NetError::TensorBasedError)?
+                *(output.get_element_mut(&[y, x])?) = (padded_image
+                    .slice(&[(y_start, y_end), (x_start, x_end)])?
                     * kernel.to_owned())
                 .sum();
             }
@@ -95,10 +91,10 @@ impl LayerConv2D {
         &self,
         filter_error: &Tensor,
         filter: &Tensor,
-    ) -> Result<Tensor, NetError> {
+    ) -> Result<Tensor, AstraError> {
         let input = match self.input.clone() {
             None => {
-                return Err(NetError::UninitializedLayerParameter(
+                return Err(AstraError::UninitializedLayerParameter(
                     "self.input".to_string(),
                 ))
             }
@@ -109,34 +105,26 @@ impl LayerConv2D {
 
         for c in 0..filter.shape[0] {
             let input_channel = input
-                .slice(&[(c, c), (0, input.shape[1] - 1), (0, input.shape[2] - 1)])
-                .map_err(NetError::TensorBasedError)?
-                .reshape(&[input.shape[1], input.shape[2]])
-                .map_err(NetError::TensorBasedError)?;
+                .slice(&[(c, c), (0, input.shape[1] - 1), (0, input.shape[2] - 1)])?
+                .reshape(&[input.shape[1], input.shape[2]])?;
 
             let padded_filter_error = filter_error
                 .to_owned()
-                .reshape(&[filter_error.shape[1], filter_error.shape[2]])
-                .map_err(NetError::TensorBasedError)?
+                .reshape(&[filter_error.shape[1], filter_error.shape[2]])?
                 .pad(&[
                     ((filter.shape[1] - 1) / 2, (filter.shape[1] - 1) / 2),
                     ((filter.shape[2] - 1) / 2, (filter.shape[2] - 1) / 2),
-                ])
-                .map_err(NetError::TensorBasedError)?;
+                ])?;
 
             for y in 0..filter.shape[1] {
                 for x in 0..filter.shape[2] {
-                    let a = gradient
-                        .get_element_mut(&[c, y, x])
-                        .map_err(NetError::TensorBasedError)?;
+                    let a = gradient.get_element_mut(&[c, y, x])?;
 
                     let input_region = input_channel
-                        .slice(&[(y, y + filter.shape[1] - 1), (x, x + filter.shape[2] - 1)])
-                        .map_err(NetError::TensorBasedError)?;
+                        .slice(&[(y, y + filter.shape[1] - 1), (x, x + filter.shape[2] - 1)])?;
 
                     let padded_filter_error_region = padded_filter_error
-                        .slice(&[(y, y + filter.shape[1] - 1), (x, x + filter.shape[2] - 1)])
-                        .map_err(NetError::TensorBasedError)?;
+                        .slice(&[(y, y + filter.shape[1] - 1), (x, x + filter.shape[2] - 1)])?;
 
                     *a = (input_region * padded_filter_error_region).sum();
                 }
@@ -150,14 +138,13 @@ impl LayerConv2D {
         filter_error: &Tensor,
         filter: &Tensor,
         layer_output_cur_filter: &Tensor,
-    ) -> Result<Tensor, NetError> {
+    ) -> Result<Tensor, AstraError> {
         let d_l_d_o =
             filter_error.to_owned() * self.activation.derive(layer_output_cur_filter.to_owned());
 
         let d_l_d_o = d_l_d_o
             .clone()
-            .reshape(&[d_l_d_o.shape[1], d_l_d_o.shape[2]])
-            .map_err(NetError::TensorBasedError)?;
+            .reshape(&[d_l_d_o.shape[1], d_l_d_o.shape[2]])?;
 
         let mut d_l_d_i = Tensor::zeros(&[
             filter.shape[0],
@@ -167,31 +154,22 @@ impl LayerConv2D {
 
         for c in 0..filter.shape[0] {
             let rotated_filter_channel = filter
-                .slice(&[(c, c), (0, filter.shape[1] - 1), (0, filter.shape[2] - 1)])
-                .map_err(NetError::TensorBasedError)?
-                .reshape(&[filter.shape[1], filter.shape[2]])
-                .map_err(NetError::TensorBasedError)?
-                .rotate_180_degrees()
-                .map_err(NetError::TensorBasedError)?;
+                .slice(&[(c, c), (0, filter.shape[1] - 1), (0, filter.shape[2] - 1)])?
+                .reshape(&[filter.shape[1], filter.shape[2]])?
+                .rotate_180_degrees()?;
 
-            let padded_d_l_d_o = d_l_d_o
-                .pad(&[
-                    (filter.shape[1] - 1, filter.shape[1] - 1),
-                    (filter.shape[2] - 1, filter.shape[2] - 1),
-                ])
-                .map_err(NetError::TensorBasedError)?;
+            let padded_d_l_d_o = d_l_d_o.pad(&[
+                (filter.shape[1] - 1, filter.shape[1] - 1),
+                (filter.shape[2] - 1, filter.shape[2] - 1),
+            ])?;
 
             for y in 0..layer_output_cur_filter.shape[0] {
                 for x in 0..layer_output_cur_filter.shape[1] {
-                    let d_l_d_i_element = d_l_d_i
-                        .get_element_mut(&[c, y, x])
-                        .map_err(NetError::TensorBasedError)?;
+                    let d_l_d_i_element = d_l_d_i.get_element_mut(&[c, y, x])?;
 
                     *d_l_d_i_element = (padded_d_l_d_o
-                        .slice(&[(y, y + filter.shape[1] - 1), (x, x + filter.shape[2] - 1)])
-                        .map_err(NetError::TensorBasedError)?
-                        .reshape(&[filter.shape[1], filter.shape[2]])
-                        .map_err(NetError::TensorBasedError)?
+                        .slice(&[(y, y + filter.shape[1] - 1), (x, x + filter.shape[2] - 1)])?
+                        .reshape(&[filter.shape[1], filter.shape[2]])?
                         * rotated_filter_channel.clone())
                     .sum();
                 }
@@ -203,7 +181,7 @@ impl LayerConv2D {
 }
 
 impl Layer for LayerConv2D {
-    fn feed_forward(&mut self, inputs: &Tensor) -> Result<Tensor, NetError> {
+    fn feed_forward(&mut self, inputs: &Tensor) -> Result<Tensor, AstraError> {
         self.input = Some(inputs.to_owned());
 
         let mut output: Vec<Tensor> = Vec::new();
@@ -216,20 +194,16 @@ impl Layer for LayerConv2D {
             for c_n in 0..self.filters.shape[1] {
                 let filter = self
                     .filters
-                    .slice(&[(f_n, f_n), (c_n, c_n), (0, ks1 - 1), (0, ks2 - 1)])
-                    .map_err(NetError::TensorBasedError)?
-                    .reshape(&[ks1, ks2])
-                    .map_err(NetError::TensorBasedError)?;
+                    .slice(&[(f_n, f_n), (c_n, c_n), (0, ks1 - 1), (0, ks2 - 1)])?
+                    .reshape(&[ks1, ks2])?;
 
                 let c_input = inputs
                     .slice(&[
                         (c_n, c_n),
                         (0, inputs.shape[1] - 1),
                         (0, inputs.shape[2] - 1),
-                    ])
-                    .map_err(NetError::TensorBasedError)?
-                    .reshape(&[inputs.shape[1], inputs.shape[2]])
-                    .map_err(NetError::TensorBasedError)?;
+                    ])?
+                    .reshape(&[inputs.shape[1], inputs.shape[2]])?;
 
                 cur_filter_result.push(self.convolution(&c_input, &filter)?);
             }
@@ -241,7 +215,7 @@ impl Layer for LayerConv2D {
             output.push(summed);
         }
 
-        let layer_result = Tensor::stack(&output).map_err(NetError::TensorBasedError)?;
+        let layer_result = Tensor::stack(&output)?;
         self.output = Some(layer_result.clone());
 
         Ok(layer_result)
@@ -252,14 +226,14 @@ impl Layer for LayerConv2D {
         error: Tensor,
         learning_rate: f64,
         clipping_value: Option<f64>,
-    ) -> Result<Tensor, NetError> {
+    ) -> Result<Tensor, AstraError> {
         let mut gradients: Vec<Tensor> = Vec::new();
         let mut prev_layer_errors: Vec<Tensor> = Vec::new();
 
         let layer_output = self
             .output
             .clone()
-            .ok_or(NetError::UninitializedLayerParameter(
+            .ok_or(AstraError::UninitializedLayerParameter(
                 "self.output".to_string(),
             ))?;
 
@@ -271,26 +245,21 @@ impl Layer for LayerConv2D {
                     (0, self.filters.shape[1] - 1),
                     (0, self.filters.shape[2] - 1),
                     (0, self.filters.shape[3] - 1),
-                ])
-                .map_err(NetError::TensorBasedError)?
+                ])?
                 .reshape(&[
                     self.filters.shape[1],
                     self.filters.shape[2],
                     self.filters.shape[3],
-                ])
-                .map_err(NetError::TensorBasedError)?;
+                ])?;
 
-            let cur_filter_error = error
-                .slice(&[(f_n, f_n), (0, error.shape[1] - 1), (0, error.shape[2] - 1)])
-                .map_err(NetError::TensorBasedError)?;
+            let cur_filter_error =
+                error.slice(&[(f_n, f_n), (0, error.shape[1] - 1), (0, error.shape[2] - 1)])?;
 
-            let layer_output_cur_filter = layer_output
-                .slice(&[
-                    (f_n, f_n),
-                    (0, layer_output.shape[1] - 1),
-                    (0, layer_output.shape[2] - 1),
-                ])
-                .map_err(NetError::TensorBasedError)?;
+            let layer_output_cur_filter = layer_output.slice(&[
+                (f_n, f_n),
+                (0, layer_output.shape[1] - 1),
+                (0, layer_output.shape[2] - 1),
+            ])?;
 
             let gradient = self.calculate_gradients_per_filter(&cur_filter_error, &cur_filter)?;
             gradients.push(gradient.clone());
@@ -305,10 +274,8 @@ impl Layer for LayerConv2D {
 
         // Update filter weights
         let gradients_stacked = match clipping_value {
-            None => Tensor::stack(&gradients).map_err(NetError::TensorBasedError)?,
-            Some(v) => Tensor::stack(&gradients)
-                .map_err(NetError::TensorBasedError)?
-                .clip(v),
+            None => Tensor::stack(&gradients)?,
+            Some(v) => Tensor::stack(&gradients)?.clip(v),
         };
         self.filters = self.filters.to_owned() - (gradients_stacked * learning_rate);
 
@@ -316,7 +283,7 @@ impl Layer for LayerConv2D {
         let prev_layer_error_sum = prev_layer_errors
             .into_iter()
             .reduce(|a, b| a + b)
-            .ok_or(NetError::CustomError("could not sum errors".to_string()))?;
+            .ok_or(AstraError::CustomError("could not sum errors".to_string()))?;
 
         Ok(prev_layer_error_sum)
     }
