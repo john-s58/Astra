@@ -1,6 +1,5 @@
 pub mod activation;
-pub mod conv2d2;
-pub mod conv2d3;
+pub mod conv2d;
 pub mod dense;
 pub mod flatten;
 pub mod layer;

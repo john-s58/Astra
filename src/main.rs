@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use crate::astra_net::activation::{LeakyReLU, Sigmoid, Softmax, TanH};
-use crate::astra_net::conv2d3::{LayerConv2D, Padding};
+use crate::astra_net::conv2d::{LayerConv2D, Padding};
 use crate::astra_net::dense::LayerDense;
 use crate::astra_net::flatten::LayerFlatten;
 use crate::astra_net::loss::{CategoricalCrossEntropy, MSE};
