@@ -708,7 +708,7 @@ impl std::ops::Add<Tensor> for Tensor {
 impl std::ops::Sub<Tensor> for Tensor {
     type Output = Tensor;
 
-    fn sub(self, rhs: Tensor) -> Self::Output {
+    fn sub(self, rhs: Tensor) -> Self::Output {        
         assert!(self.ndim == rhs.ndim, "Tensors DIMS do not match");
         for (idx, (dim_t1, dim_t2)) in self.shape.iter().zip(rhs.shape.iter()).enumerate() {
             assert!(

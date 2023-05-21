@@ -66,11 +66,9 @@ impl LayerConv2D {
         stride: (usize, usize),
         padding: Padding,
     ) -> Result<Tensor, AstraError> {
-        println!("is it here?");
         if input.ndim != 2 || filter.ndim != 2 {
             return Err(AstraError::UnsupportedDimension);
         }
-        println!("not here");
 
         let (input_rows, input_cols) = (input.shape[0], input.shape[1]);
         let (filter_rows, filter_cols) = (filter.shape[0], filter.shape[1]);
@@ -86,24 +84,26 @@ impl LayerConv2D {
             Padding::Same => {
                 (output_rows, output_cols) = (input_rows, input_cols);
 
-                let mut padding_rows = (stride_rows - 1) * input_rows - stride_rows + filter_rows;
+                let mut padding_rows = (stride_rows - 1) * input_rows + filter_rows - stride_rows;
+                let mut padding_cols = (stride_cols - 1) * input_cols + filter_cols - stride_cols;
+                let (mut padding_top, mut padding_bottom, mut padding_left, mut padding_right) =
+                    (0, 0, 0, 0);
+
                 match padding_rows % 2 {
                     0 => padding_rows = padding_rows / 2,
                     _ => padding_rows = padding_rows / 2 + 1,
                 }
                 match padding_rows % 2 {
                     0 => {
-                        let padding_top = padding_rows / 2;
-                        let padding_bottom = padding_rows - padding_top;
+                        padding_top = padding_rows / 2;
+                        padding_bottom = padding_rows - padding_top;
                     }
                     _ => {
-                        let padding_top = padding_rows / 2 + 1;
-                        let padding_bottom = padding_rows - padding_top;
+                        padding_top = padding_rows / 2 + 1;
+                        padding_bottom = padding_rows - padding_top;
                     }
                 }
-                let mut padding_cols = (stride_cols - 1) * input_cols - stride_cols + filter_cols;
-                let (mut padding_top, mut padding_bottom, mut padding_left, mut padding_right) =
-                    (0, 0, 0, 0);
+                
                 match padding_cols % 2 {
                     0 => padding_cols = padding_cols / 2,
                     _ => padding_cols = padding_cols / 2 + 1,
@@ -123,8 +123,8 @@ impl LayerConv2D {
                     input.pad(&[(padding_top, padding_bottom), (padding_left, padding_right)])?;
             }
             Padding::Custom((top, bottom), (left, right)) => {
-                output_rows = (input_rows - filter_rows + top + bottom) / stride_rows + 1;
-                output_cols = (input_cols - filter_cols + left + right) / stride_cols + 1;
+                output_rows = (input_rows + top + bottom - filter_rows) / stride_rows + 1;
+                output_cols = (input_cols + left + right - filter_cols) / stride_cols + 1;
 
                 padded_input = input.pad(&[(top, bottom), (left, right)])?;
             }
@@ -152,82 +152,11 @@ impl LayerConv2D {
         padding: Padding,
     ) -> Result<Tensor, AstraError> {
         if input.ndim != 2 || filter.ndim != 2 {
+            println!("{:#?}", input.shape);
             return Err(AstraError::UnsupportedDimension);
         }
-
-        let (input_rows, input_cols) = (input.shape[0], input.shape[1]);
-        let (filter_rows, filter_cols) = (filter.shape[0], filter.shape[1]);
-        let (stride_rows, stride_cols) = stride;
-
-        let mut padded_input = input.to_owned();
-
-        let mut output_rows = (input_rows - filter_rows) / stride_rows + 1;
-        let mut output_cols = (input_cols - filter_cols) / stride_cols + 1;
-
-        match padding {
-            Padding::Valid => {}
-            Padding::Same => {
-                (output_rows, output_cols) = (input_rows, input_cols);
-
-                let mut padding_rows = (stride_rows - 1) * input_rows - stride_rows + filter_rows;
-                match padding_rows % 2 {
-                    0 => padding_rows = padding_rows / 2,
-                    _ => padding_rows = padding_rows / 2 + 1,
-                }
-                match padding_rows % 2 {
-                    0 => {
-                        let padding_top = padding_rows / 2;
-                        let padding_bottom = padding_rows - padding_top;
-                    }
-                    _ => {
-                        let padding_top = padding_rows / 2 + 1;
-                        let padding_bottom = padding_rows - padding_top;
-                    }
-                }
-                let mut padding_cols = (stride_cols - 1) * input_cols - stride_cols + filter_cols;
-                let (mut padding_top, mut padding_bottom, mut padding_left, mut padding_right) =
-                    (0, 0, 0, 0);
-                match padding_cols % 2 {
-                    0 => padding_cols = padding_cols / 2,
-                    _ => padding_cols = padding_cols / 2 + 1,
-                }
-                match padding_cols % 2 {
-                    0 => {
-                        padding_left = padding_cols / 2;
-                        padding_right = padding_cols - padding_left;
-                    }
-                    _ => {
-                        padding_left = padding_cols / 2 + 1;
-                        padding_right = padding_cols - padding_left;
-                    }
-                }
-
-                padded_input =
-                    input.pad(&[(padding_top, padding_bottom), (padding_left, padding_right)])?;
-            }
-            Padding::Custom((top, bottom), (left, right)) => {
-                output_rows = (input_rows - filter_rows + top + bottom) / stride_rows + 1;
-                output_cols = (input_cols - filter_cols + left + right) / stride_cols + 1;
-
-                padded_input = input.pad(&[(top, bottom), (left, right)])?;
-            }
-        }
-        let mut output = Tensor::zeros(&[output_rows, output_cols]);
-
         let rotated_filter = filter.to_owned().rotate_180_degrees()?;
-
-        for r in 0..output_rows {
-            for c in 0..output_cols {
-                let (r_start, r_end) = (r * stride_rows, r * stride_rows + filter_rows - 1);
-                let (c_start, c_end) = (c * stride_cols, c * stride_cols + filter_cols - 1);
-
-                *(output.get_element_mut(&[r, c])?) = (padded_input
-                    .slice(&[(r_start, r_end), (c_start, c_end)])?
-                    * rotated_filter.clone())
-                .sum();
-            }
-        }
-        Ok(output)
+        Self::cross_correlation(input, &rotated_filter, stride, padding)
     }
 }
 
@@ -319,7 +248,8 @@ impl Layer for LayerConv2D {
                 (f_n, f_n),
                 (0, output_gradient.shape[1] - 1),
                 (0, output_gradient.shape[2] - 1),
-            ])?;
+            ])?
+            .reshape(&[output_gradient.shape[1], output_gradient.shape[2]])?;;
 
             let layer_output_cur_filter = layer_output.slice(&[
                 (f_n, f_n),
@@ -329,8 +259,8 @@ impl Layer for LayerConv2D {
             .reshape(&[layer_output.shape[1], layer_output.shape[2]])?;
 
             let mut input_gradient = Tensor::zeros(&cur_filter_output_gradient.shape);
-
-            for c_n in 0..self.filter_shape[1] {
+            let mut curr_filter_gradient: Vec<Tensor> = Vec::new();
+            for c_n in 0..cur_filter.shape[0] {
                 let input_channel = layer_input
                     .slice(&[
                         (c_n, c_n),
@@ -345,7 +275,7 @@ impl Layer for LayerConv2D {
                     self.stride,
                     Padding::Valid,
                 )?;
-                filter_gradients.push(gradient.clone());
+                curr_filter_gradient.push(gradient.clone());
 
                 let filter_channel = cur_filter
                     .slice(&[
@@ -363,9 +293,9 @@ impl Layer for LayerConv2D {
                         Padding::Same,
                     )?;
             }
+            filter_gradients.push(Tensor::stack(&curr_filter_gradient)?);
             input_gradients.push(input_gradient);
         }
-
         // Update filter weights
         let filter_gradients_stacked = match clipping_value {
             None => Tensor::stack(&filter_gradients)?,

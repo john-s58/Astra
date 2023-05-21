@@ -97,7 +97,7 @@ fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, AstraError> {
 }
 
 fn test_image_rec() -> Result<(), Box<dyn Error>> {
-    let ns = 50;
+    let ns = 50000;
 
     let data = generate_image_data(ns)?;
     let mut targets: Vec<Tensor> = Vec::with_capacity(ns);
