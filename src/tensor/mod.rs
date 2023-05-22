@@ -309,6 +309,44 @@ impl Tensor {
         Ok((q, r))
     }
 
+    pub fn det(&self) -> Result<f64, AstraError> {
+        if self.ndim != 2 {
+            return Err(AstraError::UnsupportedDimension);
+        }
+        if self.shape[0] != self.shape[1] {
+            return Err(AstraError::NonSquareMatrix);
+        }
+
+        let mut am = self.to_owned();
+        let n = self.shape[0];
+
+        for fd in 0..n {
+            for i in fd..n {
+                {
+                    let diag_elem = am.get_element_mut(&[fd, fd]).unwrap();
+                    if *diag_elem == 0. {
+                        *diag_elem = 1.0e-18;
+                    }
+                }
+                let cr_scaler =
+                    am.get_element(&[i, fd]).unwrap() * am.get_element(&[fd, fd]).unwrap().clone();
+
+                for j in 0..n {
+                    let fd_j = am.get_element(&[fd, j]).unwrap().clone();
+                    {
+                        let elem = am.get_element_mut(&[i, j]).unwrap();
+                        *elem = *elem - cr_scaler * fd_j;
+                    }
+                }
+            }
+        }
+        let mut product = 1.0;
+        for i in 0..n {
+            product = product * am.get_element(&[i, i]).unwrap();
+        }
+        Ok(product)
+    }
+
     fn get_column(&self, col: usize) -> Self {
         let rows = self.shape[0];
         let mut data = Vec::with_capacity(rows);
@@ -708,7 +746,7 @@ impl std::ops::Add<Tensor> for Tensor {
 impl std::ops::Sub<Tensor> for Tensor {
     type Output = Tensor;
 
-    fn sub(self, rhs: Tensor) -> Self::Output {        
+    fn sub(self, rhs: Tensor) -> Self::Output {
         assert!(self.ndim == rhs.ndim, "Tensors DIMS do not match");
         for (idx, (dim_t1, dim_t2)) in self.shape.iter().zip(rhs.shape.iter()).enumerate() {
             assert!(
@@ -791,60 +829,32 @@ impl Default for Tensor {
     }
 }
 
-// fn copy_data_recursive(
-//     &self,
-//     dest: &mut Tensor,
-//     index: &mut Vec<usize>,
-//     dim: usize,
-// ) -> Result<(), AstraError> {
-//     if dim == self.ndim {
-//         if let Some(value) = self.get_element(index)? {
-//             dest.set_element(index, *value);
-//         }
-//     } else {
-//         for i in 0..self.shape[dim] {
-//             index[dim] = i;
-//             self.copy_data_recursive(dest, index, dim + 1);
-//         }
-//     }
-//     Ok(())
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-// pub fn stack(tensors: &[Self], mut axis: isize) -> Option<Self> {
-//     if tensors.is_empty() {
-//         return None;
-//     }
+    #[test]
+    fn padding() {
+        let unpadded = Tensor::from_element(5., vec![4, 4]);
+        let padded = Tensor::from_vec(
+            vec![
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 5.0, 5.0, 5.0, 0.0, 0.0, 0.0,
+                5.0, 5.0, 5.0, 5.0, 0.0, 0.0, 0.0, 5.0, 5.0, 5.0, 5.0, 0.0, 0.0, 0.0, 5.0, 5.0,
+                5.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0,
+            ],
+            vec![7, 7],
+        )
+        .expect("failed to create tensor from vec");
 
-//     // Check if all tensors have the same shape
-//     let first_shape = &tensors[0].shape;
-//     for tensor in &tensors[1..] {
-//         if &tensor.shape != first_shape {
-//             return None;
-//         }
-//     }
-
-//     // Handle negative axis values
-//     let ndim = first_shape.len() as isize;
-//     if axis < 0 {
-//         axis += ndim + 1;
-//     }
-//     if axis < 0 || axis as usize > ndim as usize {
-//         return None;
-//     }
-
-//     // Create a new shape with an additional dimension
-//     let mut new_shape = first_shape.clone();
-//     new_shape.insert(axis as usize, tensors.len());
-
-//     // Create a new tensor with the new shape and fill it with zeros
-//     let mut result = Tensor::zeros(&new_shape);
-
-//     // Copy data from each input tensor to the new tensor
-//     for (i, tensor) in tensors.iter().enumerate() {
-//         let mut index = vec![0; new_shape.len()];
-//         index[axis as usize] = i;
-//         Self::copy_data_recursive(tensor, &mut result, &mut index, 0);
-//     }
-
-//     Some(result)
-// }
+        match unpadded.pad(&[(2, 1), (1, 2)]) {
+            Err(_) => {
+                assert_eq!(1, 2)
+            }
+            Ok(t) => {
+                assert_eq!(padded.data, t.data);
+                assert_eq!(padded.shape, t.shape)
+            }
+        }
+    }
+}

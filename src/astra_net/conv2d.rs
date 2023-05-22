@@ -103,7 +103,7 @@ impl LayerConv2D {
                         padding_bottom = padding_rows - padding_top;
                     }
                 }
-                
+
                 match padding_cols % 2 {
                     0 => padding_cols = padding_cols / 2,
                     _ => padding_cols = padding_cols / 2 + 1,
@@ -244,19 +244,21 @@ impl Layer for LayerConv2D {
                     self.filters.shape[3],
                 ])?;
 
-            let cur_filter_output_gradient = output_gradient.slice(&[
-                (f_n, f_n),
-                (0, output_gradient.shape[1] - 1),
-                (0, output_gradient.shape[2] - 1),
-            ])?
-            .reshape(&[output_gradient.shape[1], output_gradient.shape[2]])?;;
+            let cur_filter_output_gradient = output_gradient
+                .slice(&[
+                    (f_n, f_n),
+                    (0, output_gradient.shape[1] - 1),
+                    (0, output_gradient.shape[2] - 1),
+                ])?
+                .reshape(&[output_gradient.shape[1], output_gradient.shape[2]])?;
 
-            let layer_output_cur_filter = layer_output.slice(&[
-                (f_n, f_n),
-                (0, layer_output.shape[1] - 1),
-                (0, layer_output.shape[2] - 1),
-            ])?
-            .reshape(&[layer_output.shape[1], layer_output.shape[2]])?;
+            let layer_output_cur_filter = layer_output
+                .slice(&[
+                    (f_n, f_n),
+                    (0, layer_output.shape[1] - 1),
+                    (0, layer_output.shape[2] - 1),
+                ])?
+                .reshape(&[layer_output.shape[1], layer_output.shape[2]])?;
 
             let mut input_gradient = Tensor::zeros(&cur_filter_output_gradient.shape);
             let mut curr_filter_gradient: Vec<Tensor> = Vec::new();

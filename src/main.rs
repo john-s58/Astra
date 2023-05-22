@@ -1,3 +1,7 @@
+mod astra_net;
+mod error;
+mod tensor;
+
 use std::error::Error;
 
 use crate::astra_net::activation::{LeakyReLU, Sigmoid, Softmax, TanH};
@@ -9,18 +13,17 @@ use crate::astra_net::Net;
 use crate::error::AstraError;
 use crate::tensor::Tensor;
 
-mod astra_net;
-mod error;
-mod tensor;
 use rand::Rng;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let _ = MSE::new();
-    let _ = TanH::new();
-
-    //test_dense()?;
-    test_image_rec()?;
-    Ok(())
+fn main() {
+    let unpadded = Tensor::from_element(5., vec![4, 4]);
+    let paddded = unpadded.pad(&[(2, 1), (1, 2)]);
+    match paddded {
+        Err(e) => {}
+        Ok(t) => {
+            println!("{:#?}", t.shape)
+        }
+    }
 }
 
 fn test_dense() -> Result<(), Box<dyn Error>> {
