@@ -19,6 +19,7 @@ pub struct LayerConv2D {
     pub stride: (usize, usize),
     pub padding: Padding,
     pub input_shape: Vec<usize>,
+    pub bias: Tensor,
     pub activation: Box<dyn Activation>,
     pub input: Option<Tensor>,
     pub output: Option<Tensor>,
@@ -35,12 +36,37 @@ impl LayerConv2D {
         stride: (usize, usize),
         activation: Box<dyn Activation>,
     ) -> Self {
+        let (input_rows, input_cols) = (input_shape[0], input_shape[1]);
+        let (filter_rows, filter_cols) = (filter_shape[0], filter_shape[1]);
+        let (stride_rows, stride_cols) = stride;
+
+        let output_shape: Vec<usize>;
+
+        match padding {
+            Padding::Valid => {
+                let output_rows = (input_rows - filter_rows) / stride_rows + 1;
+                let output_cols = (input_cols - filter_cols) / stride_cols + 1;
+                output_shape = vec![n_filters, output_rows, output_cols];
+            }
+            Padding::Same => {
+                output_shape = vec![n_filters, input_rows, input_rows];
+            }
+            Padding::Custom((top, bottom), (left, right)) => {
+                let output_rows = (input_rows + top + bottom - filter_rows) / stride_rows + 1;
+                let output_cols = (input_cols + left + right - filter_cols) / stride_cols + 1;
+                output_shape = vec![n_filters, output_rows, output_cols];
+            }
+        }
+
+        let bias = Tensor::from_element(1.0, output_shape);
+
         Self {
             filters: Self::xavier_init(&filter_shape, n_channels, n_filters),
             filter_shape,
             stride,
             padding,
             input_shape,
+            bias,
             activation,
             input: None,
             output: None,
@@ -200,7 +226,7 @@ impl Layer for LayerConv2D {
             output.push(summed);
         }
 
-        self.z = Some(Tensor::stack(&output)?);
+        self.z = Some(Tensor::stack(&output)? + self.bias.clone());
         self.output = Some(self.activation.call(self.z.clone().unwrap()));
 
         Ok(self.output.clone().unwrap())
@@ -304,6 +330,8 @@ impl Layer for LayerConv2D {
             Some(v) => Tensor::stack(&filter_gradients)?.clip(v),
         };
         self.filters = self.filters.to_owned() - (filter_gradients_stacked * learning_rate);
+
+        self.bias = self.bias.clone() - (output_gradient * learning_rate);
 
         // Sum errors for the previous layer
         let input_gradients = input_gradients

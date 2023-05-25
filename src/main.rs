@@ -16,14 +16,7 @@ use crate::tensor::Tensor;
 use rand::Rng;
 
 fn main() {
-    let unpadded = Tensor::from_element(5., vec![4, 4]);
-    let paddded = unpadded.pad(&[(2, 1), (1, 2)]);
-    match paddded {
-        Err(e) => {}
-        Ok(t) => {
-            println!("{:#?}", t.shape)
-        }
-    }
+    test_image_rec();
 }
 
 fn test_dense() -> Result<(), Box<dyn Error>> {
@@ -100,7 +93,7 @@ fn generate_image_data(n_samples: usize) -> Result<Vec<Tensor>, AstraError> {
 }
 
 fn test_image_rec() -> Result<(), Box<dyn Error>> {
-    let ns = 50000;
+    let ns = 500;
 
     let data = generate_image_data(ns)?;
     let mut targets: Vec<Tensor> = Vec::with_capacity(ns);
