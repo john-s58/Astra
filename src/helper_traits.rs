@@ -29,5 +29,18 @@ impl Numeric for u64 {}
 impl Numeric for u128 {}
 impl Numeric for usize {}
 
+//use core::ops::{Add, Div, Mul, Sub, Rem};
 // trait NewTrait: Clone + Default + OtherTraits {}
 // impl<T> NewTrait for T where T: Clone + Default + OtherTraits {}
+// impl<T> Tensor<T> where
+//     T: Add<Output = Self>
+//     + Div<Output = Self>
+//     + Mul<Output = Self>
+//     + Sub<Output = Self>
+//     + Rem<Output = Self>
+//     + Copy
+//     + PartialEq
+//     + PartialOrd
+//     // Add the below if you don't want floats.
+//     // + Eq
+//     // + Ord
