@@ -1,6 +1,8 @@
 mod astra_net;
 mod error;
 mod tensor;
+mod tensor2;
+mod helper_traits;
 
 use std::error::Error;
 
