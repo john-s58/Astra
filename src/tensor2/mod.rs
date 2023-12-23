@@ -211,11 +211,7 @@ where
         })
     }
 
-    fn project_indices_to_ranges(
-        &self,
-        indices: &[usize],
-        ranges: &[(usize, usize)],
-    ) -> Vec<usize> {
+    fn project_indices_to_ranges(indices: &[usize], ranges: &[(usize, usize)]) -> Vec<usize> {
         let mut projected: Vec<usize> = Vec::new();
         for (i, r) in indices.iter().zip(ranges.iter()) {
             projected.push(r.0 + i);
@@ -241,7 +237,7 @@ where
 
         for flat_index in 0..new_size {
             let multi_index = Self::get_multi_index(flat_index, &new_shape);
-            let projected_index = self.project_indices_to_ranges(&multi_index, ranges);
+            let projected_index = Self::project_indices_to_ranges(&multi_index, ranges);
 
             let value = self.get_element(&projected_index)?;
             new_data.push(*value);
@@ -266,21 +262,24 @@ where
         }
 
         for dim in 0..self.n_dim {
-            if ranges[dim].1 - ranges[dim].0 != source.shape[dim] {
-                return Err(AstraError::CustomError("Slice shape mismatch".to_string()));
+            if ranges[dim].1 - ranges[dim].0 + 1 != source.shape[dim] {
+                return Err(AstraError::CustomError(
+                    format!(
+                        "Slice shape mismatch {} != {}",
+                        ranges[dim].1 - ranges[dim].0 + 1,
+                        source.shape[dim]
+                    )
+                    .to_string(),
+                ));
             }
         }
 
         for i in 0..source.data.len() {
             let source_multi_index = source.get_indices(i)?;
-            let mut target_index = Vec::with_capacity(self.n_dim);
-
-            for (dim, &range) in source_multi_index.iter().zip(ranges.iter()) {
-                target_index.push(dim + range.0);
-            }
+            let target_multi_index = Self::project_indices_to_ranges(&source_multi_index, ranges);
 
             let source_value = source.data[i];
-            *self.get_element_mut(&target_index)? = source_value;
+            *self.get_element_mut(&target_multi_index)? = source_value;
         }
 
         Ok(())
@@ -373,64 +372,65 @@ where
         )?)
     }
 
-    fn gaussian_elimination(&self) -> Result<(Self, i32), AstraError> {
-        if self.shape.len() != 2 {
+    pub fn gaussian_elimination(&mut self) -> Result<(), AstraError> {
+        if self.n_dim != 2 {
             return Err(AstraError::UnsupportedDimension);
         }
 
-        let n = self.shape[0];
-        let mut matrix = self.data.clone();
-        let mut num_swaps = 0;
+        let rows = self.shape[0];
+        let cols = self.shape[1];
 
-        for i in 0..n {
-            // Partial pivoting
-            let mut max = i;
-            for k in i + 1..n {
-                if matrix[k * n + i].abs() > matrix[max * n + i].abs() {
-                    max = k;
-                }
-            }
-            if matrix[max * n + i] == T::default() {
-                // All remaining elements in column are zero, matrix might be singular
-                return Err(AstraError::SingularMatrix);
-            }
-            if i != max {
-                for j in 0..n {
-                    matrix.swap(i * n + j, max * n + j);
-                }
-                num_swaps += 1;
-            }
+        for i in 0..rows.min(cols) {
+            println!("self in loop start {:#?}", self);
+            // Find the pivot row
+            let pivot_row = self.find_pivot_row(i)?;
+            println!("pivot row: {}", pivot_row);
 
-            // Gaussian elimination
-            let pivot = matrix[i * n + i];
-            for k in i + 1..n {
-                let factor = matrix[k * n + i] / pivot;
-                for j in i..n {
-                    let value_to_subtract = factor * matrix[i * n + j];
-                    matrix[k * n + j] -= value_to_subtract;
-                }
-            }
+            // Swap pivot row with current row
+            self.swap_rows(i, pivot_row)?;
+            println!("self after swap_rows {:#?}", self);
+
+
+            // Perform elimination
+            self.eliminate_column(i)?;
+            println!("self after eliminate column {:#?}", self);
         }
 
-        // Constructing a new Tensor<T> with the modified matrix data
-        let tensor = Tensor::from_vec(matrix, self.shape.clone())?;
-        Ok((tensor, num_swaps))
+        Ok(())
     }
 
-    pub fn det(&self) -> Result<T, AstraError> {
-        let (matrix, num_swaps) = self.gaussian_elimination()?;
-        let matrix = matrix.data.clone();
-        let mut det = if num_swaps % 2 == 0 {
-            T::from_i32(1)
-        } else {
-            T::from_i32(-1)
-        };
+    pub fn find_pivot_row(&self, start_row: usize) -> Result<usize, AstraError> {
+        let mut max = T::zero();
+        let mut pivot_row = start_row;
 
-        for i in 0..self.shape[0] {
-            det = det * matrix[i * self.shape[1] + i];
+        for r in start_row..self.shape[0] {
+            let val = self.get_element(&[r, start_row])?;
+            if val.abs() > max {
+                max = val.abs();
+                pivot_row = r;
+            }
         }
 
-        Ok(det)
+        if max == T::zero() {
+            return Err(AstraError::SingularMatrix);
+        }
+
+        Ok(pivot_row)
+    }
+
+    fn eliminate_column(&mut self, col: usize) -> Result<(), AstraError> {
+        let pivot_val = *self.get_element(&[col, col])?;
+
+        for r in col + 1..self.shape[0] {
+            let factor = *self.get_element(&[r, col])? / pivot_val;
+            for c in col..self.shape[1] {
+                let val = *self.get_element(&[r, c])? - factor * *self.get_element(&[col, c])?;
+                self.set_element(&[r, c], val)?;
+            }
+        }
+        
+
+        Ok(())
     }
 }
 
@@ -587,23 +587,6 @@ mod tests {
         assert_eq!(result.data, vec![17, 39]);
     }
 
-    // #[test]
-    // fn test_gaussian_elimination() {
-    //     let tensor = Tensor::from_vec(vec![4, 3, 6, 3], vec![2, 2]).unwrap();
-    //     let (eliminated, _) = tensor.gaussian_elimination().unwrap();
-
-    //     // Check if the matrix is in upper triangular form
-    //     assert!(eliminated.data[2] == 0);
-    // }
-
-    // #[test]
-    // fn test_det() {
-    //     let tensor = Tensor::from_vec(vec![4, 3, 6, 3], vec![2, 2]).unwrap();
-    //     let determinant = tensor.det().unwrap();
-
-    //     assert_eq!(determinant, -6);
-    // }
-
     #[test]
     fn test_slice_normal() {
         let tensor = Tensor::from_vec(vec![1, 2, 3, 4, 5, 6, 7, 8, 9], vec![3, 3]).unwrap();
@@ -637,9 +620,9 @@ mod tests {
     #[test]
     fn test_set_slice_normal() {
         let mut tensor = Tensor::from_vec(vec![1, 2, 3, 4, 5, 6], vec![2, 3]).unwrap();
-        let source = Tensor::from_vec(vec![7, 8], vec![2, 1]).unwrap();
-        tensor.set_slice(&[(0, 1), (1, 2)], &source).unwrap();
-        let expected = Tensor::from_vec(vec![1, 7, 3, 4, 8, 6], vec![2, 3]).unwrap();
+        let source = Tensor::from_vec(vec![7, 8], vec![1, 2]).unwrap();
+        tensor.set_slice(&[(0, 0), (0, 1)], &source).unwrap();
+        let expected = Tensor::from_vec(vec![7, 8, 3, 4, 5, 6], vec![2, 3]).unwrap();
         assert_eq!(tensor, expected);
     }
 
@@ -658,4 +641,140 @@ mod tests {
         let result = tensor.set_slice(&[(0, 2), (1, 3)], &source);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_find_pivot_row_regular_matrix() {
+        let tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+        let pivot_row = tensor.find_pivot_row(0).unwrap();
+
+        // Expect the pivot row to be the second row in this case
+        assert_eq!(pivot_row, 1);
+    }
+
+    #[test]
+    fn test_find_pivot_row_singular_matrix() {
+        let tensor = Tensor::from_vec(vec![0.0, 0.0, 0.0, 0.0], vec![2, 2]).unwrap();
+        let result = tensor.find_pivot_row(0);
+
+        assert!(matches!(result, Err(AstraError::SingularMatrix)));
+    }
+
+    #[test]
+    fn test_eliminate_column_regular_matrix() {
+        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+        tensor.eliminate_column(0).unwrap();
+
+        // Expected result after eliminating the first column
+        let expected = Tensor::from_vec(vec![1.0, 2.0, 0.0, -2.0], vec![2, 2]).unwrap();
+        assert_eq!(tensor, expected);
+    }
+
+    #[test]
+    fn test_eliminate_column_last_column() {
+        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+        let result = tensor.eliminate_column(1);
+
+        // Expect success, but no changes as it's the last column
+        assert!(result.is_ok());
+        assert_eq!(
+            tensor,
+            Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_gaussian_elimination_square_matrix() {
+        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+        tensor.gaussian_elimination().unwrap();
+
+        // Expected result after Gaussian Elimination
+        let expected = Tensor::from_vec(vec![1.0, 2.0, 0.0, -2.0], vec![2, 2]).unwrap();
+        assert_eq!(tensor, expected);
+    }
+
+    #[test]
+    fn test_gaussian_elimination_rectangular_matrix() {
+        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]).unwrap();
+        tensor.gaussian_elimination().unwrap();
+
+        // Expected result after Gaussian Elimination
+        let expected = Tensor::from_vec(vec![1.0, 2.0, 3.0, 0.0, 0.0, 0.0], vec![2, 3]).unwrap();
+        assert_eq!(tensor, expected);
+    }
+
+    #[test]
+    fn test_gaussian_elimination_unsupported_dimension() {
+        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0], vec![3]).unwrap();
+        let result = tensor.gaussian_elimination();
+
+        assert!(matches!(result, Err(AstraError::UnsupportedDimension)));
+    }
+
+    #[test]
+    fn test_gaussian_elimination_singular_matrix() {
+        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 0.0, 0.0], vec![2, 2]).unwrap();
+        let result = tensor.gaussian_elimination();
+
+        assert!(matches!(result, Err(AstraError::SingularMatrix)));
+    }
 }
+
+// fn gaussian_elimination(&self) -> Result<(Self, i32), AstraError> {
+//     if self.shape.len() != 2 {
+//         return Err(AstraError::UnsupportedDimension);
+//     }
+
+//     let n = self.shape[0];
+//     let mut matrix = self.data.clone();
+//     let mut num_swaps = 0;
+
+//     for i in 0..n {
+//         // Partial pivoting
+//         let mut max = i;
+//         for k in i + 1..n {
+//             if matrix[k * n + i].abs() > matrix[max * n + i].abs() {
+//                 max = k;
+//             }
+//         }
+//         if matrix[max * n + i] == T::default() {
+//             // All remaining elements in column are zero, matrix might be singular
+//             return Err(AstraError::SingularMatrix);
+//         }
+//         if i != max {
+//             for j in 0..n {
+//                 matrix.swap(i * n + j, max * n + j);
+//             }
+//             num_swaps += 1;
+//         }
+
+//         // Gaussian elimination
+//         let pivot = matrix[i * n + i];
+//         for k in i + 1..n {
+//             let factor = matrix[k * n + i] / pivot;
+//             for j in i..n {
+//                 let value_to_subtract = factor * matrix[i * n + j];
+//                 matrix[k * n + j] -= value_to_subtract;
+//             }
+//         }
+//     }
+
+//     // Constructing a new Tensor<T> with the modified matrix data
+//     let tensor = Tensor::from_vec(matrix, self.shape.clone())?;
+//     Ok((tensor, num_swaps))
+// }
+
+// pub fn det(&self) -> Result<T, AstraError> {
+//     let (matrix, num_swaps) = self.gaussian_elimination()?;
+//     let matrix = matrix.data.clone();
+//     let mut det = if num_swaps % 2 == 0 {
+//         T::from_i32(1)
+//     } else {
+//         T::from_i32(-1)
+//     };
+
+//     for i in 0..self.shape[0] {
+//         det = det * matrix[i * self.shape[1] + i];
+//     }
+
+//     Ok(det)
+// }

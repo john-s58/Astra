@@ -11,6 +11,7 @@ pub trait Numeric:
     + PartialOrd
     + Default
     + std::ops::SubAssign
+    + std::fmt::Debug
 {
     fn from_i32(value: i32) -> Self;
     fn abs(&self) -> Self;

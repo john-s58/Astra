@@ -156,13 +156,13 @@ use std::error::Error;
 use tensor2::Tensor;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let tensor = Tensor::from_vec(vec![1, 2, 3, 4, 5, 6, 7, 8, 9], vec![3, 3]).unwrap();
-    let sliced = tensor.slice(&[(1, 2), (0, 1)]).unwrap();
-    let expected = Tensor::from_vec(vec![4, 5, 7, 8], vec![2, 2]).unwrap();
+    let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+    tensor.gaussian_elimination().unwrap();
+
+    // Expected result after Gaussian Elimination
+    let expected = Tensor::from_vec(vec![1.0, 2.0, 0.0, -2.0], vec![2, 2]).unwrap();
 
     println!("{:#?}", tensor);
-    println!("{:#?}", sliced);
-    println!("{:#?}", expected);
 
     Ok(())
 }
