@@ -372,64 +372,52 @@ where
         )?)
     }
 
-    pub fn gaussian_elimination(&mut self) -> Result<(), AstraError> {
+    pub fn reduced_row_echelon_form(&mut self) -> Result<(), AstraError> {
         if self.n_dim != 2 {
             return Err(AstraError::UnsupportedDimension);
         }
 
         let rows = self.shape[0];
         let cols = self.shape[1];
+        let mut pivot = 0;
 
-        for i in 0..rows.min(cols) {
-            println!("self in loop start {:#?}", self);
-            // Find the pivot row
-            let pivot_row = self.find_pivot_row(i)?;
-            println!("pivot row: {}", pivot_row);
-
-            // Swap pivot row with current row
-            self.swap_rows(i, pivot_row)?;
-            println!("self after swap_rows {:#?}", self);
-
-
-            // Perform elimination
-            self.eliminate_column(i)?;
-            println!("self after eliminate column {:#?}", self);
-        }
-
-        Ok(())
-    }
-
-    pub fn find_pivot_row(&self, start_row: usize) -> Result<usize, AstraError> {
-        let mut max = T::zero();
-        let mut pivot_row = start_row;
-
-        for r in start_row..self.shape[0] {
-            let val = self.get_element(&[r, start_row])?;
-            if val.abs() > max {
-                max = val.abs();
-                pivot_row = r;
+        for r in 0..rows {
+            if cols <= pivot {
+                break;
             }
-        }
-
-        if max == T::zero() {
-            return Err(AstraError::SingularMatrix);
-        }
-
-        Ok(pivot_row)
-    }
-
-    fn eliminate_column(&mut self, col: usize) -> Result<(), AstraError> {
-        let pivot_val = *self.get_element(&[col, col])?;
-
-        for r in col + 1..self.shape[0] {
-            let factor = *self.get_element(&[r, col])? / pivot_val;
-            for c in col..self.shape[1] {
-                let val = *self.get_element(&[r, c])? - factor * *self.get_element(&[col, c])?;
-                self.set_element(&[r, c], val)?;
+            let mut i = r;
+            while self.get_element(&[i, pivot])? == &T::zero() {
+                i += 1;
+                if i == rows {
+                    i = r;
+                    pivot += 1;
+                    if cols == pivot {
+                        pivot -= 1;
+                        break;
+                    }
+                }
             }
-        }
-        
+            self.swap_rows(r, i)?;
 
+            let divisor = *self.get_element(&[r, pivot])?;
+            if divisor != T::zero() {
+                for j in 0..cols {
+                    let val = *self.get_element(&[r, j])? / divisor;
+                    self.set_element(&[r, j], val)?;
+                }
+            }
+            for i in 0..rows {
+                if i != r {
+                    let hold = *self.get_element(&[i, pivot])?;
+                    for j in 0..cols {
+                        let val =
+                            *self.get_element(&[i, j])? - hold * *self.get_element(&[r, j])?;
+                        self.set_element(&[i, j], val)?;
+                    }
+                }
+            }
+            pivot += 1;
+        }
         Ok(())
     }
 }
@@ -643,138 +631,64 @@ mod tests {
     }
 
     #[test]
-    fn test_find_pivot_row_regular_matrix() {
-        let tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
-        let pivot_row = tensor.find_pivot_row(0).unwrap();
+    fn test_rref_square_matrix() {
+        let data = vec![
+            1.0, 2.0, -1.0, -4.0, 2.0, 3.0, -1.0, -11.0, -2.0, 0.0, -3.0, 22.0,
+        ];
+        let shape = vec![3, 4];
+        let mut tensor = Tensor::from_vec(data, shape).unwrap();
+        tensor.reduced_row_echelon_form().unwrap();
 
-        // Expect the pivot row to be the second row in this case
-        assert_eq!(pivot_row, 1);
+        let expected_data = vec![1.0, 0.0, 0.0, -8.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, -2.0];
+        let expected_tensor = Tensor::from_vec(expected_data, vec![3, 4]).unwrap();
+
+        assert_eq!(tensor, expected_tensor);
     }
 
     #[test]
-    fn test_find_pivot_row_singular_matrix() {
-        let tensor = Tensor::from_vec(vec![0.0, 0.0, 0.0, 0.0], vec![2, 2]).unwrap();
-        let result = tensor.find_pivot_row(0);
+    fn test_rref_non_square_matrix() {
+        let data = vec![2.0, 4.0, -2.0, 2.0, -4.0, -6.0, 6.0, 7.0];
+        let shape = vec![2, 4];
+        let mut tensor = Tensor::from_vec(data, shape).unwrap();
+        tensor.reduced_row_echelon_form().unwrap();
 
-        assert!(matches!(result, Err(AstraError::SingularMatrix)));
+        let expected_data = vec![1.0, 0.0, -3.0, -10.0, 0.0, 1.0, 1.0, 5.5];
+        let expected_tensor = Tensor::from_vec(expected_data, vec![2, 4]).unwrap();
+
+        assert_eq!(tensor, expected_tensor);
     }
 
     #[test]
-    fn test_eliminate_column_regular_matrix() {
-        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
-        tensor.eliminate_column(0).unwrap();
+    fn test_rref_already_reduced_matrix() {
+        let data = vec![1.0, 0.0, 0.0, 3.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 1.0, 2.0];
+        let shape = vec![3, 4];
+        let mut tensor = Tensor::from_vec(data, shape).unwrap();
+        tensor.reduced_row_echelon_form().unwrap();
 
-        // Expected result after eliminating the first column
-        let expected = Tensor::from_vec(vec![1.0, 2.0, 0.0, -2.0], vec![2, 2]).unwrap();
-        assert_eq!(tensor, expected);
+        let expected_tensor = tensor.clone();
+
+        assert_eq!(tensor, expected_tensor);
     }
 
     #[test]
-    fn test_eliminate_column_last_column() {
-        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
-        let result = tensor.eliminate_column(1);
+    fn test_rref_matrix_with_zero_row() {
+        let data = vec![1.0, 2.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.0];
+        let shape = vec![3, 4];
+        let mut tensor = Tensor::from_vec(data, shape).unwrap();
+        tensor.reduced_row_echelon_form().unwrap();
 
-        // Expect success, but no changes as it's the last column
-        assert!(result.is_ok());
-        assert_eq!(
-            tensor,
-            Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap()
-        );
+        let expected_data = vec![1.0, 2.0, 0.0, 3.0, 0.0, 0.0, 1.0, 2.0, 0.0, 0.0, 0.0, 0.0];
+        let expected_tensor = Tensor::from_vec(expected_data, vec![3, 4]).unwrap();
+
+        assert_eq!(tensor, expected_tensor);
     }
 
     #[test]
-    fn test_gaussian_elimination_square_matrix() {
-        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
-        tensor.gaussian_elimination().unwrap();
+    fn test_rref_error_non_2d_tensor() {
+        let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let shape = vec![6]; // 1D tensor
+        let mut tensor = Tensor::from_vec(data, shape).unwrap();
 
-        // Expected result after Gaussian Elimination
-        let expected = Tensor::from_vec(vec![1.0, 2.0, 0.0, -2.0], vec![2, 2]).unwrap();
-        assert_eq!(tensor, expected);
-    }
-
-    #[test]
-    fn test_gaussian_elimination_rectangular_matrix() {
-        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]).unwrap();
-        tensor.gaussian_elimination().unwrap();
-
-        // Expected result after Gaussian Elimination
-        let expected = Tensor::from_vec(vec![1.0, 2.0, 3.0, 0.0, 0.0, 0.0], vec![2, 3]).unwrap();
-        assert_eq!(tensor, expected);
-    }
-
-    #[test]
-    fn test_gaussian_elimination_unsupported_dimension() {
-        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0], vec![3]).unwrap();
-        let result = tensor.gaussian_elimination();
-
-        assert!(matches!(result, Err(AstraError::UnsupportedDimension)));
-    }
-
-    #[test]
-    fn test_gaussian_elimination_singular_matrix() {
-        let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 0.0, 0.0], vec![2, 2]).unwrap();
-        let result = tensor.gaussian_elimination();
-
-        assert!(matches!(result, Err(AstraError::SingularMatrix)));
+        assert!(tensor.reduced_row_echelon_form().is_err());
     }
 }
-
-// fn gaussian_elimination(&self) -> Result<(Self, i32), AstraError> {
-//     if self.shape.len() != 2 {
-//         return Err(AstraError::UnsupportedDimension);
-//     }
-
-//     let n = self.shape[0];
-//     let mut matrix = self.data.clone();
-//     let mut num_swaps = 0;
-
-//     for i in 0..n {
-//         // Partial pivoting
-//         let mut max = i;
-//         for k in i + 1..n {
-//             if matrix[k * n + i].abs() > matrix[max * n + i].abs() {
-//                 max = k;
-//             }
-//         }
-//         if matrix[max * n + i] == T::default() {
-//             // All remaining elements in column are zero, matrix might be singular
-//             return Err(AstraError::SingularMatrix);
-//         }
-//         if i != max {
-//             for j in 0..n {
-//                 matrix.swap(i * n + j, max * n + j);
-//             }
-//             num_swaps += 1;
-//         }
-
-//         // Gaussian elimination
-//         let pivot = matrix[i * n + i];
-//         for k in i + 1..n {
-//             let factor = matrix[k * n + i] / pivot;
-//             for j in i..n {
-//                 let value_to_subtract = factor * matrix[i * n + j];
-//                 matrix[k * n + j] -= value_to_subtract;
-//             }
-//         }
-//     }
-
-//     // Constructing a new Tensor<T> with the modified matrix data
-//     let tensor = Tensor::from_vec(matrix, self.shape.clone())?;
-//     Ok((tensor, num_swaps))
-// }
-
-// pub fn det(&self) -> Result<T, AstraError> {
-//     let (matrix, num_swaps) = self.gaussian_elimination()?;
-//     let matrix = matrix.data.clone();
-//     let mut det = if num_swaps % 2 == 0 {
-//         T::from_i32(1)
-//     } else {
-//         T::from_i32(-1)
-//     };
-
-//     for i in 0..self.shape[0] {
-//         det = det * matrix[i * self.shape[1] + i];
-//     }
-
-//     Ok(det)
-// }

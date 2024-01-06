@@ -156,12 +156,10 @@ use std::error::Error;
 use tensor2::Tensor;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut tensor = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
-    tensor.gaussian_elimination().unwrap();
-
-    // Expected result after Gaussian Elimination
-    let expected = Tensor::from_vec(vec![1.0, 2.0, 0.0, -2.0], vec![2, 2]).unwrap();
-
+    let data = vec![2.0, 4.0, -2.0, 2.0, -4.0, -6.0, 6.0, 7.0];
+    let shape = vec![2, 4];
+    let mut tensor = Tensor::from_vec(data, shape).unwrap();
+    tensor.reduced_row_echelon_form().unwrap();
     println!("{:#?}", tensor);
 
     Ok(())
