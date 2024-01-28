@@ -366,10 +366,7 @@ where
             }
         }
 
-        Ok(Tensor::from_vec(
-            result_data,
-            vec![self.shape[0], other_cols],
-        )?)
+        Tensor::from_vec(result_data, vec![self.shape[0], other_cols])
     }
 
     pub fn reduced_row_echelon_form(&mut self) -> Result<(), AstraError> {
