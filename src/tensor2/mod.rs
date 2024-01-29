@@ -417,6 +417,30 @@ where
         }
         Ok(())
     }
+    pub fn pad(&self, padding: &[(usize, usize)]) -> Result<Self, AstraError> {
+        if self.ndim != padding.len(){
+            return Err(AstraError::ShapeMismatchBetweenTensors)
+        }
+        let new_shape: Vec<usize> = self
+            .shape
+            .iter()
+            .zip(padding.iter())
+            .map(|(dim_size, (pad_before, pad_after))| dim_size + pad_before + pad_after)
+            .collect();
+        let mut padded = Self::from_element(0, new_shape);
+
+        let index_ranges: Vec<(usize, usize)> = padded
+            .shape
+            .iter()
+            .zip(padding.iter())
+            .map(|(dim_size, (pad_before, pad_after))| (*pad_before, dim_size - pad_after - 1)
+            .collect();
+
+        padded.set_slice(index_ranges.as_slice(), self)?;
+
+        Ok(padded)
+
+    }
 }
 
 #[cfg(test)]
